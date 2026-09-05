@@ -284,6 +284,10 @@ HTML_TEMPLATE = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
+@app.route('/health')
+def health():
+    return "OK", 200
+
 @app.route('/validate_proxies', methods=['POST'])
 def validate_proxies():
     data = request.json
