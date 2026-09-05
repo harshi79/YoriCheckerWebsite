@@ -22,29 +22,32 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YoriChecker // Brutalist</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+        
         body {
             background: #111;
             color: #eee;
-            font-family: 'Courier New', monospace;
+            font-family: 'Space Mono', monospace;
             margin: 0;
             padding: 20px;
         }
-        .container { max-width: 1000px; margin: 0 auto; }
+        .container { max-width: 1100px; margin: 0 auto; }
         h1 {
             text-transform: uppercase;
             letter-spacing: 2px;
-            border-bottom: 4px solid #f39c12;
+            border-bottom: 4px solid #ff5500;
             padding-bottom: 10px;
             text-shadow: 4px 4px 0px #000;
             margin-top: 0;
+            color: #ff5500;
         }
         .panels { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
         .panel {
             flex: 1;
             min-width: 300px;
             background: #222;
-            border: 2px solid #444;
-            box-shadow: 8px 8px 0px #000;
+            border: 3px solid #444;
+            box-shadow: 10px 10px 0px #000;
             padding: 15px;
         }
         .panel h3 {
@@ -52,15 +55,16 @@ HTML_TEMPLATE = """
             border-bottom: 2px solid #555;
             padding-bottom: 5px;
             text-transform: uppercase;
+            color: #00ffaa;
         }
         textarea {
             width: 100%;
             height: 150px;
             background: #000;
-            color: #0f0;
+            color: #00ffaa;
             border: 2px solid #555;
             padding: 10px;
-            font-family: monospace;
+            font-family: 'Space Mono', monospace;
             box-sizing: border-box;
             box-shadow: inset 4px 4px 0px #111;
         }
@@ -68,67 +72,77 @@ HTML_TEMPLATE = """
             margin-top: 10px;
             color: #ccc;
             display: block;
+            font-family: 'Space Mono', monospace;
         }
         .btn {
-            background: #f39c12;
+            background: #ff5500;
             color: #000;
-            border: 2px solid #000;
+            border: 3px solid #000;
             padding: 15px 30px;
             font-size: 18px;
             font-weight: bold;
             text-transform: uppercase;
             cursor: pointer;
-            box-shadow: 6px 6px 0px #000;
+            box-shadow: 8px 8px 0px #000;
             transition: transform 0.1s, box-shadow 0.1s;
-            font-family: monospace;
+            font-family: 'Space Mono', monospace;
             width: 100%;
             margin-top: 20px;
         }
-        .btn:hover { transform: translate(2px, 2px); box-shadow: 4px 4px 0px #000; }
-        .btn:active { transform: translate(6px, 6px); box-shadow: 0px 0px 0px #000; }
+        .btn:hover { transform: translate(2px, 2px); box-shadow: 6px 6px 0px #000; }
+        .btn:active { transform: translate(8px, 8px); box-shadow: 0px 0px 0px #000; }
         .btn:disabled {
             background: #555;
             color: #888;
             cursor: not-allowed;
-            box-shadow: 6px 6px 0px #000;
+            box-shadow: 8px 8px 0px #000;
             transform: none;
         }
         .btn-small {
-            background: #e74c3c;
-            color: #fff;
+            background: #00ffaa;
+            color: #000;
             border: 2px solid #000;
             padding: 8px 15px;
             font-size: 14px;
             font-weight: bold;
             text-transform: uppercase;
             cursor: pointer;
-            box-shadow: 4px 4px 0px #000;
+            box-shadow: 5px 5px 0px #000;
             margin-top: 10px;
-            font-family: monospace;
+            font-family: 'Space Mono', monospace;
             transition: transform 0.1s, box-shadow 0.1s;
         }
-        .btn-small:hover { transform: translate(1px, 1px); box-shadow: 3px 3px 0px #000; }
-        .btn-small:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px #000; }
+        .btn-small:hover { transform: translate(1px, 1px); box-shadow: 4px 4px 0px #000; }
+        .btn-small:active { transform: translate(5px, 5px); box-shadow: 0px 0px 0px #000; }
+        .btn-small:disabled {
+            background: #555;
+            color: #888;
+            cursor: not-allowed;
+            box-shadow: 5px 5px 0px #000;
+            transform: none;
+        }
         #logArea {
             background: #000;
-            border: 2px solid #444;
-            box-shadow: 8px 8px 0px #000;
+            border: 3px solid #444;
+            box-shadow: 10px 10px 0px #000;
             height: 300px;
             overflow-y: scroll;
             padding: 15px;
-            font-size: 14px;
-            color: #0f0;
+            font-size: 13px;
+            color: #00ffaa;
             white-space: pre-wrap;
             margin-top: 20px;
+            font-family: 'Space Mono', monospace;
         }
         #downloadBtn {
             display: none;
-            background: #2ecc71;
+            background: #00ffaa;
+            color: #000;
         }
         .status-text {
             margin-top: 10px;
             font-weight: bold;
-            color: #f39c12;
+            color: #ff5500;
         }
     </style>
 </head>
@@ -140,12 +154,12 @@ HTML_TEMPLATE = """
             <div class="panel">
                 <h3>Combos</h3>
                 <textarea id="combos_text" placeholder="email:pass"></textarea>
-                <input type="file" id="combos_file" accept=".txt">
+                <input type="file" id="combos_file" accept=".txt" onchange="loadFile(this, 'combos_text')">
             </div>
             <div class="panel">
                 <h3>Proxies</h3>
                 <textarea id="proxies_text" placeholder="ip:port:user:pass or ip:port"></textarea>
-                <input type="file" id="proxies_file" accept=".txt">
+                <input type="file" id="proxies_file" accept=".txt" onchange="loadFile(this, 'proxies_text')">
                 <button class="btn-small" id="validateBtn" onclick="validateProxies()">VALIDATE PROXIES</button>
                 <div class="status-text" id="proxyStatus">Load proxies to begin.</div>
             </div>
@@ -163,18 +177,24 @@ HTML_TEMPLATE = """
         let combosLoaded = false;
         let proxiesValidated = false;
 
+        function loadFile(input, textareaId) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const textarea = document.getElementById(textareaId);
+                textarea.value = textarea.value ? textarea.value + '\\n' + e.target.result : e.target.result;
+                updateStartButton();
+            };
+            reader.readAsText(file);
+        }
+
         function updateStartButton() {
+            combosLoaded = document.getElementById('combos_text').value.trim().length > 0;
             document.getElementById('startBtn').disabled = !(combosLoaded && proxiesValidated);
         }
 
-        document.getElementById('combos_text').addEventListener('input', () => {
-            combosLoaded = document.getElementById('combos_text').value.trim().length > 0;
-            updateStartButton();
-        });
-        document.getElementById('combos_file').addEventListener('change', () => {
-            combosLoaded = document.getElementById('combos_file').files.length > 0;
-            updateStartButton();
-        });
+        document.getElementById('combos_text').addEventListener('input', updateStartButton);
 
         async function processStream(url, payload, onMessage) {
             const response = await fetch(url, {
@@ -203,12 +223,7 @@ HTML_TEMPLATE = """
 
         async function validateProxies() {
             const text = document.getElementById('proxies_text').value;
-            const file = document.getElementById('proxies_file').files[0];
-            
-            let proxiesText = text;
-            if (file) proxiesText += '\\n' + await file.text();
-            
-            const proxies = proxiesText.split('\\n').filter(l => l.trim());
+            const proxies = text.split('\\n').filter(l => l.trim());
             if (proxies.length === 0) {
                 proxiesValidated = false;
                 updateStartButton();
@@ -223,7 +238,7 @@ HTML_TEMPLATE = """
             const logArea = document.getElementById('logArea');
             logArea.innerHTML = '';
             
-            await processStream('/validate_proxies', {proxies: proxiesText}, (data) => {
+            await processStream('/validate_proxies', {proxies: proxies}, (data) => {
                 if (data.log) {
                     logArea.innerHTML += data.log + '\\n';
                     logArea.scrollTop = logArea.scrollHeight;
@@ -240,10 +255,7 @@ HTML_TEMPLATE = """
         }
 
         async function startChecking() {
-            const combosText = document.getElementById('combos_text').value;
-            const combosFile = document.getElementById('combos_file').files[0];
-            let fullCombos = combosText;
-            if (combosFile) fullCombos += '\\n' + await combosFile.text();
+            const fullCombos = document.getElementById('combos_text').value;
             
             document.getElementById('startBtn').disabled = true;
             document.getElementById('startBtn').textContent = 'CHECKING...';
@@ -275,14 +287,14 @@ def index():
 @app.route('/validate_proxies', methods=['POST'])
 def validate_proxies():
     data = request.json
-    proxies = [p.strip() for p in data.get('proxies', '').splitlines() if p.strip()]
+    proxies = [p.strip() for p in data.get('proxies', []) if p.strip()]
     
     def stream():
         working = []
         for p in proxies:
             try:
                 proxy_dict = {"http": p, "https": p}
-                r = requests.get("https://api.ipify.org?format=json", proxies=proxy_dict, timeout=5)
+                r = requests.get("http://httpbin.org/ip", proxies=proxy_dict, timeout=7)
                 if r.status_code == 200:
                     yield f"data: {json.dumps({'log': f'Testing {p}... ✓ working', 'working': True})}\n\n"
                     working.append(p)
