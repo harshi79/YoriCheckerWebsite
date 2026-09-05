@@ -107,6 +107,10 @@ HTML_TEMPLATE = """
 def index():
     return render_template_string(HTML_TEMPLATE)
 
+@app.route('/health')
+def health():
+    return "OK", 200
+
 @app.route('/validate', methods=['POST'])
 def validate():
     data = request.json
