@@ -72,31 +72,93 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YoriChecker // Brutalist</title>
+    <title>YoriChecker // Crunchyroll</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
         
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             background: #111;
             color: #eee;
             font-family: 'Space Mono', monospace;
             margin: 0;
             padding: 20px;
+            min-height: 100vh;
         }
-        .container { max-width: 1100px; margin: 0 auto; }
+        .container { max-width: 1100px; margin: 0 auto; width: 100%; }
+        
+        .site-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 4px solid #ff5500;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .site-logo {
+            width: 70px;
+            height: 70px;
+            object-fit: contain;
+            border: 3px solid #ff5500;
+            box-shadow: 5px 5px 0px #000;
+            background: #222;
+            padding: 5px;
+        }
         h1 {
             text-transform: uppercase;
             letter-spacing: 2px;
-            border-bottom: 4px solid #ff5500;
-            padding-bottom: 10px;
             text-shadow: 4px 4px 0px #000;
-            margin-top: 0;
+            margin: 0;
             color: #ff5500;
+            font-size: 28px;
         }
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+        .btn-telegram {
+            background: #0088cc;
+            color: #fff;
+            border: 2px solid #000;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            text-decoration: none;
+            box-shadow: 4px 4px 0px #000;
+            transition: transform 0.1s, box-shadow 0.1s;
+            font-family: 'Space Mono', monospace;
+            text-align: center;
+            display: inline-block;
+        }
+        .btn-telegram:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #000; }
+        .btn-telegram:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px #000; }
+        
+        .made-by {
+            color: #888;
+            font-size: 12px;
+            text-decoration: none;
+            font-family: 'Space Mono', monospace;
+            transition: color 0.2s;
+        }
+        .made-by:hover { color: #00ffaa; }
+
         .panels { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
         .panel {
             flex: 1;
-            min-width: 300px;
+            min-width: 280px;
             background: #222;
             border: 3px solid #444;
             box-shadow: 10px 10px 0px #000;
@@ -117,14 +179,15 @@ HTML_TEMPLATE = """
             border: 2px solid #555;
             padding: 10px;
             font-family: 'Space Mono', monospace;
-            box-sizing: border-box;
             box-shadow: inset 4px 4px 0px #111;
+            resize: vertical;
         }
         input[type="file"] {
             margin-top: 10px;
             color: #ccc;
             display: block;
             font-family: 'Space Mono', monospace;
+            width: 100%;
         }
         .btn {
             background: #ff5500;
@@ -163,6 +226,7 @@ HTML_TEMPLATE = """
             margin-top: 10px;
             font-family: 'Space Mono', monospace;
             transition: transform 0.1s, box-shadow 0.1s;
+            width: 100%;
         }
         .btn-small:hover { transform: translate(1px, 1px); box-shadow: 4px 4px 0px #000; }
         .btn-small:active { transform: translate(5px, 5px); box-shadow: 0px 0px 0px #000; }
@@ -185,6 +249,7 @@ HTML_TEMPLATE = """
             white-space: pre-wrap;
             margin-top: 20px;
             font-family: 'Space Mono', monospace;
+            word-break: break-all;
         }
         #downloadBtn {
             display: none;
@@ -196,11 +261,32 @@ HTML_TEMPLATE = """
             font-weight: bold;
             color: #ff5500;
         }
+
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .site-header { flex-direction: column; align-items: flex-start; gap: 15px; }
+            .header-right { width: 100%; align-items: flex-start; flex-direction: row; justify-content: space-between; }
+            h1 { font-size: 22px; }
+            .site-logo { width: 50px; height: 50px; }
+            .btn { font-size: 16px; padding: 12px 20px; }
+            .panel { box-shadow: 6px 6px 0px #000; min-width: 100%; }
+            #logArea { box-shadow: 6px 6px 0px #000; height: 250px; font-size: 12px; }
+            .btn-small { box-shadow: 4px 4px 0px #000; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>YoriChecker // Crunchyroll</h1>
+        <header class="site-header">
+            <div class="header-left">
+                <img src="/logo.png" alt="YoriChecker Logo" class="site-logo" onerror="this.style.display='none'">
+                <h1>YoriChecker</h1>
+            </div>
+            <div class="header-right">
+                <a href="https://t.me/+y8EekRvqpnQzNjZl" target="_blank" class="btn-telegram">JOIN CHANNEL</a>
+                <a href="https://t.me/WhoEvenYori" target="_blank" class="made-by">Made by @WhoEvenYori</a>
+            </div>
+        </header>
         
         <div class="panels">
             <div class="panel">
@@ -335,6 +421,13 @@ HTML_TEMPLATE = """
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
+
+@app.route('/logo.png')
+def logo():
+    try:
+        return send_file('logo.png', mimetype='image/png')
+    except FileNotFoundError:
+        return "Logo not found", 404
 
 @app.route('/health')
 def health():
@@ -504,7 +597,7 @@ def download(task_id):
     output.append(sep)
 
     mem = io.BytesIO(("\n".join(output)).encode('utf-8'))
-    return send_file(mem, as_attachment=True, download_name='YoriChecker.vercel.app.txt', mimetype='text/plain')
+    return send_file(mem, as_attachment=True, download_name='YoriChecker.txt', mimetype='text/plain')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
