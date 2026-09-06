@@ -23,226 +23,93 @@ HTML_TEMPLATE = """
     <title>YoriChecker // Unified</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
-        
         * { box-sizing: border-box; }
-
         body {
-            background: #111;
-            color: #eee;
-            font-family: 'Space Mono', monospace;
-            margin: 0;
-            padding: 20px;
-            min-height: 100vh;
-            perspective: 1000px;
+            background: #111; color: #eee; font-family: 'Space Mono', monospace;
+            margin: 0; padding: 20px; min-height: 100vh; perspective: 1000px;
         }
         .container { 
-            max-width: 1100px; 
-            margin: 0 auto; 
-            width: 100%;
-            transition: transform 0.1s ease-out;
-            transform-style: preserve-3d;
+            max-width: 1100px; margin: 0 auto; width: 100%;
+            transition: transform 0.1s ease-out; transform-style: preserve-3d;
         }
-        
         .site-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 20px; margin-bottom: 30px; padding-bottom: 20px;
             border-bottom: 4px solid #ff5500;
         }
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
+        .header-left { display: flex; align-items: center; gap: 15px; }
         .site-logo {
-            width: 70px;
-            height: 70px;
-            object-fit: contain;
-            border: 3px solid #ff5500;
-            box-shadow: 5px 5px 0px #000;
-            background: #222;
-            padding: 5px;
+            width: 70px; height: 70px; object-fit: contain; border: 3px solid #ff5500;
+            box-shadow: 5px 5px 0px #000; background: #222; padding: 5px;
         }
         h1 {
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            text-shadow: 4px 4px 0px #000;
-            margin: 0;
-            color: #ff5500;
-            font-size: 28px;
+            text-transform: uppercase; letter-spacing: 2px; text-shadow: 4px 4px 0px #000;
+            margin: 0; color: #ff5500; font-size: 28px;
         }
-        .header-right {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 8px;
-        }
+        .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
         .btn-telegram {
-            background: #0088cc;
-            color: #fff;
-            border: 2px solid #000;
-            padding: 10px 20px;
-            font-size: 14px;
-            font-weight: bold;
-            text-transform: uppercase;
-            text-decoration: none;
-            box-shadow: 4px 4px 0px #000;
-            transition: transform 0.1s, box-shadow 0.1s;
-            font-family: 'Space Mono', monospace;
-            text-align: center;
-            display: inline-block;
+            background: #0088cc; color: #fff; border: 2px solid #000; padding: 10px 20px;
+            font-size: 14px; font-weight: bold; text-transform: uppercase; text-decoration: none;
+            box-shadow: 4px 4px 0px #000; transition: transform 0.1s, box-shadow 0.1s;
+            font-family: 'Space Mono', monospace; text-align: center; display: inline-block;
         }
         .btn-telegram:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #000; }
         .btn-telegram:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px #000; }
-        
         .made-by {
-            color: #888;
-            font-size: 12px;
-            text-decoration: none;
-            font-family: 'Space Mono', monospace;
-            transition: color 0.2s;
+            color: #888; font-size: 12px; text-decoration: none;
+            font-family: 'Space Mono', monospace; transition: color 0.2s;
         }
         .made-by:hover { color: #00ffaa; }
-
         .service-select {
-            width: 100%;
-            padding: 15px;
-            background: #222;
-            color: #00ffaa;
-            border: 3px solid #444;
-            box-shadow: 8px 8px 0px #000;
-            font-family: 'Space Mono', monospace;
-            font-size: 16px;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-            cursor: pointer;
-            appearance: none;
-            -webkit-appearance: none;
+            width: 100%; padding: 15px; background: #222; color: #00ffaa;
+            border: 3px solid #444; box-shadow: 8px 8px 0px #000;
+            font-family: 'Space Mono', monospace; font-size: 16px; font-weight: bold;
+            text-transform: uppercase; margin-bottom: 10px; cursor: pointer;
+            appearance: none; -webkit-appearance: none;
             background-image: url('data:image/svg+xml;utf8,<svg fill="%2300ffaa" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
-            background-repeat: no-repeat;
-            background-position: right 15px top 50%;
+            background-repeat: no-repeat; background-position: right 15px top 50%;
         }
         .service-desc {
-            color: #888;
-            font-size: 13px;
-            margin-bottom: 20px;
-            padding: 10px;
-            background: #1a1a1a;
-            border-left: 3px solid #ff5500;
+            color: #888; font-size: 13px; margin-bottom: 20px; padding: 10px;
+            background: #1a1a1a; border-left: 3px solid #ff5500;
         }
-
         .panels { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
         .panel {
-            flex: 1;
-            min-width: 280px;
-            background: #222;
-            border: 3px solid #444;
-            box-shadow: 10px 10px 0px #000;
-            padding: 15px;
+            flex: 1 1 100%; max-width: 100%; background: #222; border: 3px solid #444;
+            box-shadow: 10px 10px 0px #000; padding: 15px;
         }
         .panel h3 {
-            margin-top: 0;
-            border-bottom: 2px solid #555;
-            padding-bottom: 5px;
-            text-transform: uppercase;
-            color: #00ffaa;
+            margin-top: 0; border-bottom: 2px solid #555; padding-bottom: 5px;
+            text-transform: uppercase; color: #00ffaa;
         }
         textarea {
-            width: 100%;
-            height: 150px;
-            background: #000;
-            color: #00ffaa;
-            border: 2px solid #555;
-            padding: 10px;
-            font-family: 'Space Mono', monospace;
-            box-shadow: inset 4px 4px 0px #111;
-            resize: vertical;
+            width: 100%; height: 150px; background: #000; color: #00ffaa;
+            border: 2px solid #555; padding: 10px; font-family: 'Space Mono', monospace;
+            box-shadow: inset 4px 4px 0px #111; resize: vertical;
         }
         input[type="file"] {
-            margin-top: 10px;
-            color: #ccc;
-            display: block;
-            font-family: 'Space Mono', monospace;
-            width: 100%;
+            margin-top: 10px; color: #ccc; display: block;
+            font-family: 'Space Mono', monospace; width: 100%;
         }
         .btn {
-            background: #ff5500;
-            color: #000;
-            border: 3px solid #000;
-            padding: 15px 30px;
-            font-size: 18px;
-            font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
-            box-shadow: 8px 8px 0px #000;
-            transition: transform 0.1s, box-shadow 0.1s;
-            font-family: 'Space Mono', monospace;
-            width: 100%;
-            margin-top: 20px;
+            background: #ff5500; color: #000; border: 3px solid #000; padding: 15px 30px;
+            font-size: 18px; font-weight: bold; text-transform: uppercase; cursor: pointer;
+            box-shadow: 8px 8px 0px #000; transition: transform 0.1s, box-shadow 0.1s;
+            font-family: 'Space Mono', monospace; width: 100%; margin-top: 20px;
         }
         .btn:hover { transform: translate(2px, 2px); box-shadow: 6px 6px 0px #000; }
         .btn:active { transform: translate(8px, 8px); box-shadow: 0px 0px 0px #000; }
         .btn:disabled {
-            background: #555;
-            color: #888;
-            cursor: not-allowed;
-            box-shadow: 8px 8px 0px #000;
-            transform: none;
-        }
-        .btn-small {
-            background: #00ffaa;
-            color: #000;
-            border: 2px solid #000;
-            padding: 8px 15px;
-            font-size: 14px;
-            font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
-            box-shadow: 5px 5px 0px #000;
-            margin-top: 10px;
-            font-family: 'Space Mono', monospace;
-            transition: transform 0.1s, box-shadow 0.1s;
-            width: 100%;
-        }
-        .btn-small:hover { transform: translate(1px, 1px); box-shadow: 4px 4px 0px #000; }
-        .btn-small:active { transform: translate(5px, 5px); box-shadow: 0px 0px 0px #000; }
-        .btn-small:disabled {
-            background: #555;
-            color: #888;
-            cursor: not-allowed;
-            box-shadow: 5px 5px 0px #000;
-            transform: none;
+            background: #555; color: #888; cursor: not-allowed;
+            box-shadow: 8px 8px 0px #000; transform: none;
         }
         #logArea {
-            background: #000;
-            border: 3px solid #444;
-            box-shadow: 10px 10px 0px #000;
-            height: 300px;
-            overflow-y: scroll;
-            padding: 15px;
-            font-size: 13px;
-            color: #00ffaa;
-            white-space: pre-wrap;
-            margin-top: 20px;
-            font-family: 'Space Mono', monospace;
-            word-break: break-all;
+            background: #000; border: 3px solid #444; box-shadow: 10px 10px 0px #000;
+            height: 300px; overflow-y: scroll; padding: 15px; font-size: 13px;
+            color: #00ffaa; white-space: pre-wrap; margin-top: 20px;
+            font-family: 'Space Mono', monospace; word-break: break-all;
         }
-        #downloadBtn {
-            display: none;
-            background: #00ffaa;
-            color: #000;
-        }
-        .status-text {
-            margin-top: 10px;
-            font-weight: bold;
-            color: #ff5500;
-        }
-
+        #downloadBtn { display: none; background: #00ffaa; color: #000; }
         @media (max-width: 600px) {
             body { padding: 10px; perspective: none; }
             .site-header { flex-direction: column; align-items: flex-start; gap: 15px; }
@@ -250,9 +117,8 @@ HTML_TEMPLATE = """
             h1 { font-size: 22px; }
             .site-logo { width: 50px; height: 50px; }
             .btn { font-size: 16px; padding: 12px 20px; }
-            .panel { box-shadow: 6px 6px 0px #000; min-width: 100%; }
+            .panel { box-shadow: 6px 6px 0px #000; }
             #logArea { box-shadow: 6px 6px 0px #000; height: 250px; font-size: 12px; }
-            .btn-small { box-shadow: 4px 4px 0px #000; }
             .container { transform: none !important; }
         }
     </style>
@@ -283,22 +149,13 @@ HTML_TEMPLATE = """
         <div class="panels">
             <div class="panel">
                 <h3>Accounts (email:pass)</h3>
-                <textarea id="accounts_text" placeholder="email:pass"></textarea>
+                <textarea id="accounts_text" placeholder="email:pass (max 50)"></textarea>
                 <input type="file" id="accounts_file" accept=".txt" onchange="loadFile(this, 'accounts_text')">
-            </div>
-            <div class="panel">
-                <h3>Proxies</h3>
-                <textarea id="proxies_text" placeholder="ip:port:user:pass or ip:port"></textarea>
-                <input type="file" id="proxies_file" accept=".txt" onchange="loadFile(this, 'proxies_text')">
-                <button class="btn-small" id="validateBtn" onclick="validateProxies()">VALIDATE PROXIES</button>
-                <div class="status-text" id="proxyStatus">Load proxies to begin.</div>
             </div>
         </div>
         
         <button class="btn" id="startBtn" disabled onclick="startChecking()">START CHECKING</button>
-        
         <div id="logArea">[System] Awaiting input...</div>
-        
         <button class="btn" id="downloadBtn">DOWNLOAD RESULTS</button>
     </div>
 
@@ -317,9 +174,7 @@ HTML_TEMPLATE = """
             document.getElementById('serviceDesc').textContent = descMap[svc] || '';
         }
 
-        let workingProxies = [];
         let accountsLoaded = false;
-        let proxiesValidated = false;
 
         function loadFile(input, textareaId) {
             const file = input.files[0];
@@ -335,7 +190,7 @@ HTML_TEMPLATE = """
 
         function updateStartButton() {
             accountsLoaded = document.getElementById('accounts_text').value.trim().length > 0;
-            document.getElementById('startBtn').disabled = !(accountsLoaded && proxiesValidated);
+            document.getElementById('startBtn').disabled = !accountsLoaded;
         }
 
         document.getElementById('accounts_text').addEventListener('input', updateStartButton);
@@ -357,45 +212,10 @@ HTML_TEMPLATE = """
                 buffer = lines.pop();
                 for(const line of lines) {
                     if(line.startsWith('data: ')) {
-                        try {
-                            onMessage(JSON.parse(line.substring(6)));
-                        } catch(e) {}
+                        try { onMessage(JSON.parse(line.substring(6))); } catch(e) {}
                     }
                 }
             }
-        }
-
-        async function validateProxies() {
-            const text = document.getElementById('proxies_text').value;
-            const proxies = text.split('\\n').filter(l => l.trim());
-            if (proxies.length === 0) {
-                proxiesValidated = false;
-                updateStartButton();
-                return;
-            }
-            
-            proxiesValidated = false;
-            updateStartButton();
-            document.getElementById('validateBtn').disabled = true;
-            document.getElementById('proxyStatus').textContent = 'Validating...';
-            
-            const logArea = document.getElementById('logArea');
-            logArea.innerHTML = '';
-            
-            await processStream('/validate_proxies', {proxies: proxies}, (data) => {
-                if (data.log) {
-                    logArea.innerHTML += data.log + '\\n';
-                    logArea.scrollTop = logArea.scrollHeight;
-                } else if (data.event === 'done') {
-                    workingProxies = data.working_proxies;
-                    logArea.innerHTML += `\\n${data.count}\\n`;
-                    logArea.scrollTop = logArea.scrollHeight;
-                    proxiesValidated = workingProxies.length > 0;
-                    document.getElementById('validateBtn').disabled = false;
-                    document.getElementById('proxyStatus').textContent = data.count;
-                    updateStartButton();
-                }
-            });
         }
 
         async function startChecking() {
@@ -407,7 +227,7 @@ HTML_TEMPLATE = """
             document.getElementById('service').disabled = true;
             document.getElementById('logArea').innerHTML = '';
             
-            await processStream('/check', {service: service, accounts: fullAccounts, working_proxies: workingProxies}, (data) => {
+            await processStream('/check', {service: service, accounts: fullAccounts}, (data) => {
                 if (data.log) {
                     document.getElementById('logArea').innerHTML += data.log + '\\n';
                     document.getElementById('logArea').scrollTop = document.getElementById('logArea').scrollHeight;
@@ -423,7 +243,6 @@ HTML_TEMPLATE = """
             });
         }
 
-        // 3D Tilt Effect
         const container = document.getElementById('mainContainer');
         if (window.innerWidth > 600) {
             document.addEventListener('mousemove', (e) => {
@@ -457,35 +276,11 @@ def logo():
 def health():
     return "OK", 200
 
-@app.route('/validate_proxies', methods=['POST'])
-def validate_proxies():
-    data = request.json
-    proxies = [p.strip() for p in data.get('proxies', []) if p.strip()]
-    
-    def stream():
-        working = []
-        for p in proxies:
-            try:
-                proxy_dict = {"http": p, "https": p}
-                r = requests.get("http://httpbin.org/ip", proxies=proxy_dict, timeout=7)
-                if r.status_code == 200:
-                    yield f"data: {json.dumps({'log': f'Testing {p}... ✓ working', 'working': True})}\n\n"
-                    working.append(p)
-                else:
-                    yield f"data: {json.dumps({'log': f'Testing {p}... ✗ failed (status {r.status_code})', 'working': False})}\n\n"
-            except Exception as e:
-                yield f"data: {json.dumps({'log': f'Testing {p}... ✗ failed ({str(e)[:20]})', 'working': False})}\n\n"
-        
-        yield f"data: {json.dumps({'event': 'done', 'working_proxies': working, 'count': f'Found {len(working)} working proxies out of {len(proxies)}'})}\n\n"
-        
-    return Response(stream(), mimetype='text/event-stream')
-
 @app.route('/check', methods=['POST'])
 def check():
     data = request.json
     service = data.get('service', 'crunchyroll')
     accounts_raw = data.get('accounts', '')
-    working_proxies = data.get('working_proxies', [])
     
     entries = []
     for line in accounts_raw.splitlines():
@@ -497,7 +292,6 @@ def check():
                 
     task_id = str(uuid.uuid4())
     
-    proxy_manager = checker.SmartProxyManager(working_proxies)
     results = []
     results_lock = threading.Lock()
     logs = []
@@ -519,7 +313,7 @@ def check():
     
     CheckerClass = checker_map.get(service, checker.CrunchyrollChecker)
 
-    def check_entry(email, password):
+    def check_entry(email, password, proxy_manager):
         max_attempts = 3
         attempts = 0
         
@@ -558,8 +352,32 @@ def check():
         return {'email': email, 'password': password, 'status': 'RATE', 'data': {}, 'error': 'Max retries exhausted'}
 
     def run():
+        if len(entries) > 50:
+            extra = len(entries) - 50
+            log(f"⚠️ Only first 50 combos will be checked (ignoring {extra} extra).")
+            entries_to_check = entries[:50]
+        else:
+            entries_to_check = entries
+
+        log("Fetching fresh proxies...")
+        try:
+            working_proxies = checker.get_working_proxies(min_count=15)
+        except Exception as e:
+            log(f"Proxy fetch failed: {str(e)[:50]}")
+            working_proxies = []
+            
+        if len(working_proxies) < 5:
+            log(f"❌ Not enough working proxies ({len(working_proxies)}). Aborting.")
+            with task_lock:
+                tasks[task_id] = (service, [])
+            return
+            
+        log(f"✓ Found {len(working_proxies)} working proxies.")
+        
+        proxy_manager = checker.SmartProxyManager(working_proxies)
+
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {executor.submit(check_entry, e, p): (e, p) for e, p in entries}
+            futures = {executor.submit(check_entry, e, p, proxy_manager): (e, p) for e, p in entries_to_check}
             for future in as_completed(futures):
                 res = future.result()
                 with results_lock:
