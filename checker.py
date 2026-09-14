@@ -50,7 +50,9 @@ PROXY_SOURCES = [
     "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt",
     "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt",
     "https://raw.githubusercontent.com/sunny9577/proxy-scraper/master/proxies.txt",
-    "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt"
+    "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt",
+    "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/all/data.txt",
+    "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS_RAW.txt"
 ]
 
 # =====================================================================
@@ -524,12 +526,13 @@ class ProxyManager:
         self.scrape_lock = threading.Lock()
         self.service = service
         self.initial_massive_load = True
-        self.min_pool_size = 50
+        self.min_pool_size = 15
         self.max_pool_size = 500
         self.validation_url = self._get_service_validation_url()
         self.validation_pattern = self._get_service_validation_pattern()
         self.checked_proxies = set()
         self.bad_proxies = set()
+        self.ready_event = threading.Event()
         
     def _get_service_validation_url(self):
         """Get service-specific validation URL"""
@@ -602,18 +605,25 @@ class ProxyManager:
     def _run(self):
         self.log(f"Proxy engine started for {self.service.upper()}")
         self.refresh(massive=self.initial_massive_load)
-        self.initial_massive_load = False
         
         while not self.stop_event.is_set():
             current_count = self.count()
             
+            if current_count >= self.min_pool_size and not self.ready_event.is_set():
+                self.log(f"Minimum pool size reached ({current_count}). Ready to check!")
+                self.ready_event.set()
+            elif current_count < self.min_pool_size:
+                self.ready_event.clear()
+                
             if current_count < self.min_pool_size:
                 self.log(f"Pool low ({current_count}). Refetching proxies...")
                 self.refresh(massive=False)
-            elif current_count < self.max_pool_size and random.random() < 0.3:
+            elif current_count < self.max_pool_size * 0.7 and random.random() < 0.4:
                 self.refresh(massive=False)
                 
-            time.sleep(15)
+            time.sleep(12)
+        
+        self.log("Proxy engine stopped")
 
     def refresh(self, massive=False):
         if not self.scrape_lock.acquire(blocking=False):
@@ -646,7 +656,8 @@ class ProxyManager:
         raw = set()
         ip_port = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{2,5}$")
         
-        sources_to_use = PROXY_SOURCES if self.initial_massive_load else PROXY_SOURCES[:3]
+        sources_to_use = PROXY_SOURCES
+        self.log(f"Fetching from {len(sources_to_use)} proxy sources...")
         
         for source in sources_to_use:
             try:
@@ -671,7 +682,7 @@ class ProxyManager:
                 response = requests.get(
                     self.validation_url,
                     proxies={"http": proxy_url, "https": proxy_url},
-                    timeout=8,
+                    timeout=4,
                     headers=HEADERS,
                     verify=False
                 )
@@ -681,7 +692,7 @@ class ProxyManager:
             except Exception:
                 pass
 
-        worker_count = 60 if self.initial_massive_load else 40
+        worker_count = 300
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             executor.map(test_proxy, proxies)
 
@@ -1121,9 +1132,19 @@ class YoriExpressCheckerApp:
         self.stop_button.config(state="normal")
 
         self._terminal_write("SYSTEM", f"[{now_ts()}] Loaded {len(combos)} formatted combos")
-        self._terminal_write("SYSTEM", f"[{now_ts()}] Starting {threads} worker threads")
+        self._terminal_write("SYSTEM", f"[{now_ts()}] Starting proxy engine...")
 
         self.proxy_manager.start()
+        
+        self._terminal_write("SYSTEM", f"[{now_ts()}] Waiting for minimum {self.proxy_manager.min_pool_size} live proxies...")
+        
+        while not self.proxy_manager.ready_event.is_set() and self.running:
+            time.sleep(0.5)
+            
+        if not self.running:
+            return
+            
+        self._terminal_write("SYSTEM", f"[{now_ts()}] Proxy pool ready! Starting {threads} worker threads")
 
         for _ in range(threads):
             threading.Thread(target=self._worker, daemon=True).start()
