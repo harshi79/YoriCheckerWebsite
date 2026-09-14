@@ -11,9 +11,6 @@ import string
 import requests
 import threading
 import queue
-import webbrowser
-import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
 from datetime import datetime
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
@@ -26,6 +23,14 @@ from cryptography.hazmat.primitives.padding import PKCS7
 from asn1crypto import cms, core, x509
 
 urllib3.disable_warnings()
+
+# Tkinter imports - only available when running GUI locally
+try:
+    import tkinter as tk
+    from tkinter import filedialog, messagebox, scrolledtext
+    TKINTER_AVAILABLE = True
+except ImportError:
+    TKINTER_AVAILABLE = False
 
 APP_NAME = "YoriExpressChecker"
 CREDIT = "made with love by @WhoEvenYori"
@@ -1224,6 +1229,9 @@ class YoriExpressCheckerApp:
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = YoriExpressCheckerApp(root)
-    root.mainloop()
+    if TKINTER_AVAILABLE:
+        root = tk.Tk()
+        app = YoriExpressCheckerApp(root)
+        root.mainloop()
+    else:
+        print("Tkinter not available. Run this script locally with a full Python installation.")
