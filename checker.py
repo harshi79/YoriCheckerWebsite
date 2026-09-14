@@ -32,7 +32,7 @@ try:
 except ImportError:
     TKINTER_AVAILABLE = False
 
-APP_NAME = "YoriExpressChecker"
+APP_NAME = "Crunchyroll Premium Checker"
 CREDIT = "made with love by @WhoEvenYori"
 TELEGRAM_LINK = "https://t.me/yorifederation"
 
@@ -702,7 +702,7 @@ class ProxyManager:
 # =====================================================================
 # GUI — SAME YORI FORMAT
 # =====================================================================
-class YoriExpressCheckerApp:
+class CrunchyrollCheckerApp:
     BG = "#11111b"
     PANEL = "#181825"
     ENTRY = "#313244"
@@ -1252,7 +1252,7 @@ class YoriExpressCheckerApp:
 if __name__ == "__main__":
     if TKINTER_AVAILABLE:
         root = tk.Tk()
-        app = YoriExpressCheckerApp(root)
+        app = CrunchyrollCheckerApp(root)
         root.mainloop()
     else:
         print("Tkinter not available. Run this script locally with a full Python installation.")
