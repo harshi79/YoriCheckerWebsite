@@ -26,11 +26,10 @@ HTML_TEMPLATE = """
         * { box-sizing: border-box; }
         body {
             background: #111; color: #eee; font-family: 'Space Mono', monospace;
-            margin: 0; padding: 20px; min-height: 100vh; perspective: 1000px;
+            margin: 0; padding: 20px; min-height: 100vh;
         }
         .container { 
             max-width: 1100px; margin: 0 auto; width: 100%;
-            transition: transform 0.1s ease-out; transform-style: preserve-3d;
         }
         .site-header {
             display: flex; justify-content: space-between; align-items: center;
@@ -69,9 +68,13 @@ HTML_TEMPLATE = """
             background-image: url('data:image/svg+xml;utf8,<svg fill="%2300ffaa" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
             background-repeat: no-repeat; background-position: right 15px top 50%;
         }
+        .service-select:focus {
+            outline: 3px solid #00ffaa; outline-offset: 2px;
+        }
         .service-desc {
-            color: #888; font-size: 13px; margin-bottom: 20px; padding: 10px;
-            background: #1a1a1a; border-left: 3px solid #ff5500;
+            color: #aaa; font-size: 14px; margin-bottom: 20px; padding: 15px;
+            background: #1a1a1a; border-left: 4px solid #ff5500;
+            font-style: italic;
         }
         .panels { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
         .panel {
@@ -79,39 +82,88 @@ HTML_TEMPLATE = """
             box-shadow: 10px 10px 0px #000; padding: 15px;
         }
         .panel h3 {
-            margin-top: 0; border-bottom: 2px solid #555; padding-bottom: 5px;
-            text-transform: uppercase; color: #00ffaa;
+            margin-top: 0; border-bottom: 2px solid #555; padding-bottom: 10px;
+            text-transform: uppercase; color: #00ffaa; font-size: 16px;
         }
         textarea {
             width: 100%; height: 150px; background: #000; color: #00ffaa;
             border: 2px solid #555; padding: 10px; font-family: 'Space Mono', monospace;
-            box-shadow: inset 4px 4px 0px #111; resize: vertical;
+            box-shadow: inset 4px 4px 0px #111; resize: vertical; font-size: 14px;
+        }
+        textarea:focus {
+            outline: 2px solid #00ffaa; outline-offset: -2px;
+        }
+        textarea::placeholder {
+            color: #555;
+        }
+        .file-input-wrapper {
+            margin-top: 15px; padding: 12px; background: #1a1a1a;
+            border: 2px dashed #444; text-align: center;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .file-input-wrapper:hover {
+            border-color: #00ffaa; background: #222;
         }
         input[type="file"] {
-            margin-top: 10px; color: #ccc; display: block;
-            font-family: 'Space Mono', monospace; width: 100%;
+            color: #ccc; font-family: 'Space Mono', monospace; width: 100%;
+            cursor: pointer;
+        }
+        input[type="file"]::-webkit-file-upload-button {
+            background: #333; color: #00ffaa; border: 2px solid #00ffaa;
+            padding: 8px 15px; margin-right: 10px; cursor: pointer;
+            font-family: 'Space Mono', monospace; font-weight: bold;
+            box-shadow: 3px 3px 0px #000;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        input[type="file"]::-webkit-file-upload-button:hover {
+            transform: translate(1px, 1px); box-shadow: 2px 2px 0px #000;
         }
         .btn {
             background: #ff5500; color: #000; border: 3px solid #000; padding: 15px 30px;
             font-size: 18px; font-weight: bold; text-transform: uppercase; cursor: pointer;
-            box-shadow: 8px 8px 0px #000; transition: transform 0.1s, box-shadow 0.1s;
+            box-shadow: 8px 8px 0px #000; transition: transform 0.1s, box-shadow 0.1s, background 0.2s;
             font-family: 'Space Mono', monospace; width: 100%; margin-top: 20px;
+            position: relative; overflow: hidden;
         }
-        .btn:hover { transform: translate(2px, 2px); box-shadow: 6px 6px 0px #000; }
-        .btn:active { transform: translate(8px, 8px); box-shadow: 0px 0px 0px #000; }
+        .btn:hover:not(:disabled) { transform: translate(2px, 2px); box-shadow: 6px 6px 0px #000; }
+        .btn:active:not(:disabled) { transform: translate(8px, 8px); box-shadow: 0px 0px 0px #000; }
         .btn:disabled {
-            background: #555; color: #888; cursor: not-allowed;
-            box-shadow: 8px 8px 0px #000; transform: none;
+            background: #333; color: #555; cursor: not-allowed;
+            box-shadow: 4px 4px 0px #000; transform: none; border-color: #222;
         }
         #logArea {
             background: #000; border: 3px solid #444; box-shadow: 10px 10px 0px #000;
             height: 300px; overflow-y: scroll; padding: 15px; font-size: 13px;
             color: #00ffaa; white-space: pre-wrap; margin-top: 20px;
             font-family: 'Space Mono', monospace; word-break: break-all;
+            line-height: 1.5;
+        }
+        #logArea:empty::before {
+            content: '[System] Awaiting input...';
+            color: #555;
         }
         #downloadBtn { display: none; background: #00ffaa; color: #000; }
+        #downloadBtn:hover:not(:disabled) { 
+            transform: translate(2px, 2px); 
+            box-shadow: 6px 6px 0px #000; 
+        }
+        .status-indicator {
+            display: inline-block; width: 10px; height: 10px;
+            border-radius: 50%; margin-right: 8px;
+            background: #555;
+        }
+        .status-indicator.active { background: #ff5500; animation: pulse 1s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .counter-badge {
+            background: #333; color: #00ffaa; padding: 5px 10px;
+            border: 2px solid #00ffaa; font-size: 12px;
+            box-shadow: 3px 3px 0px #000; margin-left: 10px;
+        }
         @media (max-width: 600px) {
-            body { padding: 10px; perspective: none; }
+            body { padding: 10px; }
             .site-header { flex-direction: column; align-items: flex-start; gap: 15px; }
             .header-right { width: 100%; align-items: flex-start; flex-direction: row; justify-content: space-between; }
             h1 { font-size: 22px; }
@@ -119,7 +171,7 @@ HTML_TEMPLATE = """
             .btn { font-size: 16px; padding: 12px 20px; }
             .panel { box-shadow: 6px 6px 0px #000; }
             #logArea { box-shadow: 6px 6px 0px #000; height: 250px; font-size: 12px; }
-            .container { transform: none !important; }
+            .service-select { font-size: 14px; padding: 12px; }
         }
     </style>
 </head>
@@ -148,14 +200,16 @@ HTML_TEMPLATE = """
 
         <div class="panels">
             <div class="panel">
-                <h3>Accounts (email:pass)</h3>
-                <textarea id="accounts_text" placeholder="email:pass (max 50)"></textarea>
-                <input type="file" id="accounts_file" accept=".txt" onchange="loadFile(this, 'accounts_text')">
+                <h3><span class="status-indicator" id="statusIndicator"></span>Accounts (email:pass)</h3>
+                <textarea id="accounts_text" placeholder="Enter email:pass combinations (one per line, max 50)"></textarea>
+                <div class="file-input-wrapper">
+                    <input type="file" id="accounts_file" accept=".txt" onchange="loadFile(this)">
+                </div>
             </div>
         </div>
         
         <button class="btn" id="startBtn" disabled onclick="startChecking()">START CHECKING</button>
-        <div id="logArea">[System] Awaiting input...</div>
+        <div id="logArea"></div>
         <button class="btn" id="downloadBtn">DOWNLOAD RESULTS</button>
     </div>
 
@@ -174,23 +228,33 @@ HTML_TEMPLATE = """
             document.getElementById('serviceDesc').textContent = descMap[svc] || '';
         }
 
-        let accountsLoaded = false;
+        let hasContent = false;
 
-        function loadFile(input, textareaId) {
+        function loadFile(input) {
             const file = input.files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
-                const textarea = document.getElementById(textareaId);
-                textarea.value = textarea.value ? textarea.value + '\\n' + e.target.result : e.target.result;
+                const textarea = document.getElementById('accounts_text');
+                const currentContent = textarea.value.trim();
+                const fileContent = e.target.result.trim();
+                if (currentContent && fileContent) {
+                    textarea.value = currentContent + '\\n' + fileContent;
+                } else if (fileContent) {
+                    textarea.value = fileContent;
+                }
                 updateStartButton();
+                input.value = '';
             };
             reader.readAsText(file);
         }
 
         function updateStartButton() {
-            accountsLoaded = document.getElementById('accounts_text').value.trim().length > 0;
-            document.getElementById('startBtn').disabled = !accountsLoaded;
+            const textarea = document.getElementById('accounts_text');
+            const lines = textarea.value.trim().split('\\n').filter(line => line.trim().length > 0);
+            const validLines = lines.filter(line => line.includes(':') && line.split(':').length >= 2);
+            hasContent = validLines.length > 0;
+            document.getElementById('startBtn').disabled = !hasContent;
         }
 
         document.getElementById('accounts_text').addEventListener('input', updateStartButton);
@@ -226,11 +290,13 @@ HTML_TEMPLATE = """
             document.getElementById('startBtn').textContent = 'PROCESSING...';
             document.getElementById('service').disabled = true;
             document.getElementById('logArea').innerHTML = '';
+            document.getElementById('statusIndicator').classList.add('active');
             
             await processStream('/check', {service: service, accounts: fullAccounts}, (data) => {
                 if (data.log) {
-                    document.getElementById('logArea').innerHTML += data.log + '\\n';
-                    document.getElementById('logArea').scrollTop = document.getElementById('logArea').scrollHeight;
+                    const logArea = document.getElementById('logArea');
+                    logArea.innerHTML += data.log + '\\n';
+                    logArea.scrollTop = logArea.scrollHeight;
                 } else if (data.event === 'done') {
                     document.getElementById('downloadBtn').style.display = 'block';
                     document.getElementById('downloadBtn').onclick = () => {
@@ -239,21 +305,8 @@ HTML_TEMPLATE = """
                     document.getElementById('startBtn').textContent = 'START CHECKING';
                     document.getElementById('startBtn').disabled = false;
                     document.getElementById('service').disabled = false;
+                    document.getElementById('statusIndicator').classList.remove('active');
                 }
-            });
-        }
-
-        const container = document.getElementById('mainContainer');
-        if (window.innerWidth > 600) {
-            document.addEventListener('mousemove', (e) => {
-                const x = (window.innerWidth / 2 - e.pageX) / 80;
-                const y = (window.innerHeight / 2 - e.pageY) / 80;
-                const tiltX = Math.max(-5, Math.min(5, y));
-                const tiltY = Math.max(-5, Math.min(5, -x));
-                container.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
-            });
-            document.addEventListener('mouseleave', () => {
-                container.style.transform = 'rotateX(0) rotateY(0)';
             });
         }
     </script>
@@ -377,11 +430,11 @@ def check():
         proxy_manager = checker.SmartProxyManager(working_proxies)
 
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {executor.submit(check_entry, e, p, proxy_manager): (e, p) for e, p in entries_to_check}
+            futures = [executor.submit(check_entry, email, password, proxy_manager) for email, password in entries_to_check]
             for future in as_completed(futures):
                 res = future.result()
                 with results_lock:
-                    results.append((futures[future], res))
+                    results.append(res)
         
         with task_lock:
             tasks[task_id] = (service, results)
@@ -443,7 +496,7 @@ def download(task_id):
         identifier = f"{entry[0]}:{entry[1]}"
         
         if status == 'HIT':
-            hits.append(format_hit_line(service, entry, res))
+            hits.append(format_hit_line(service, res))
         elif status == 'BAD':
             err = res.get('error') or res.get('reason') or 'Bad / Invalid / Free'
             bads.append(f"{identifier} | {err}")
