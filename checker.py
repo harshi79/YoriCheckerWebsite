@@ -571,8 +571,7 @@ class ProxyManager:
         self.log("Proxy pool cleared")
 
     def log(self, message, tag="PROXY"):
-        if self.ui_queue:
-            self.ui_queue.put(("log", tag, f"[{now_ts()}] {message}"))
+        self.ui_queue.put(("log", tag, f"[{now_ts()}] {message}"))
 
     def start(self):
         self.stop_event.clear()
