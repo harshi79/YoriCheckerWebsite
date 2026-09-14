@@ -14,7 +14,7 @@ app = Flask(__name__)
 tasks = {}
 task_lock = threading.Lock()
 
-HTML_TEMPLATE = """
+HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -272,15 +272,33 @@ HTML_TEMPLATE = """
             reader.onload = function(e) {
                 const textarea = document.getElementById('accounts_text');
                 const currentContent = textarea.value.trim();
-                const fileContent = e.target.result.trim();
+                let fileContent = e.target.result;
                 
-                // Clean the file content
-                const cleanedFileContent = cleanAllLines(fileContent);
+                console.log('File loaded, raw length:', fileContent.length);
+                console.log('First 200 chars:', fileContent.substring(0, 200));
                 
-                if (currentContent && cleanedFileContent) {
-                    textarea.value = currentContent + '\n' + cleanedFileContent;
-                } else if (cleanedFileContent) {
-                    textarea.value = cleanedFileContent;
+                // Try to detect and handle different encodings
+                // First, clean the file content
+                let cleanedFileContent = cleanAllLines(fileContent);
+                
+                console.log('Cleaned length:', cleanedFileContent.length);
+                
+                // If cleaning removed everything, try showing raw content for debugging
+                if (!cleanedFileContent.trim()) {
+                    // File might not have valid email:pass format, show as-is
+                    fileContent = fileContent.trim();
+                    if (currentContent && fileContent) {
+                        textarea.value = currentContent + '\n' + fileContent;
+                    } else if (fileContent) {
+                        textarea.value = fileContent;
+                    }
+                } else {
+                    // Normal case: cleaned content is valid
+                    if (currentContent && cleanedFileContent) {
+                        textarea.value = currentContent + '\n' + cleanedFileContent;
+                    } else if (cleanedFileContent) {
+                        textarea.value = cleanedFileContent;
+                    }
                 }
                 updateStartButton();
                 input.value = '';
@@ -290,7 +308,7 @@ HTML_TEMPLATE = """
                 console.error('FileReader error:', e);
                 input.value = '';
             };
-            reader.readAsText(file);
+            reader.readAsText(file, 'UTF-8');
         }
 
         function updateStartButton() {
