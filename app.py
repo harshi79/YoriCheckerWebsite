@@ -230,6 +230,41 @@ HTML_TEMPLATE = """
 
         let hasContent = false;
 
+        // Smart cleaner: extracts email:pass from each line, removing garbage text
+        function cleanLine(line) {
+            line = line.trim();
+            if (!line.includes(':')) return '';
+            
+            // Split on first colon to get email and the rest
+            const firstColonIndex = line.indexOf(':');
+            const email = line.substring(0, firstColonIndex).trim();
+            const rest = line.substring(firstColonIndex + 1);
+            
+            // Password is everything up to the first space or end of line
+            // This handles cases like "email:pass habibi <garbage>"
+            const passMatch = rest.match(/^(\S+)/);
+            if (!passMatch) return '';
+            
+            const password = passMatch[1].trim();
+            
+            if (email && password) {
+                return email + ':' + password;
+            }
+            return '';
+        }
+
+        function cleanAllLines(text) {
+            const lines = text.split(/\r?\n/);
+            const cleanedLines = [];
+            for (const line of lines) {
+                const cleaned = cleanLine(line);
+                if (cleaned) {
+                    cleanedLines.push(cleaned);
+                }
+            }
+            return cleanedLines.join('\n');
+        }
+
         function loadFile(input) {
             const file = input.files[0];
             if (!file) return;
@@ -238,10 +273,14 @@ HTML_TEMPLATE = """
                 const textarea = document.getElementById('accounts_text');
                 const currentContent = textarea.value.trim();
                 const fileContent = e.target.result.trim();
-                if (currentContent && fileContent) {
-                    textarea.value = currentContent + '\\n' + fileContent;
-                } else if (fileContent) {
-                    textarea.value = fileContent;
+                
+                // Clean the file content
+                const cleanedFileContent = cleanAllLines(fileContent);
+                
+                if (currentContent && cleanedFileContent) {
+                    textarea.value = currentContent + '\n' + cleanedFileContent;
+                } else if (cleanedFileContent) {
+                    textarea.value = cleanedFileContent;
                 }
                 updateStartButton();
                 input.value = '';
@@ -258,6 +297,15 @@ HTML_TEMPLATE = """
         }
 
         document.getElementById('accounts_text').addEventListener('input', updateStartButton);
+        
+        // Also clean on paste event
+        document.getElementById('accounts_text').addEventListener('paste', function(e) {
+            setTimeout(function() {
+                const textarea = document.getElementById('accounts_text');
+                textarea.value = cleanAllLines(textarea.value);
+                updateStartButton();
+            }, 10);
+        });
 
         async function processStream(url, payload, onMessage) {
             const response = await fetch(url, {
