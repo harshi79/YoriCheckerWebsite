@@ -203,7 +203,7 @@ HTML_TEMPLATE = """
                 <h3><span class="status-indicator" id="statusIndicator"></span>Accounts (email:pass)</h3>
                 <textarea id="accounts_text" placeholder="Enter email:pass combinations (one per line, max 50)"></textarea>
                 <div class="file-input-wrapper">
-                    <input type="file" id="accounts_file" accept=".txt" onchange="loadFile(this)">
+                    <input type="file" id="accounts_file" accept=".txt,text/plain" onchange="loadFile(this)">
                 </div>
             </div>
         </div>
@@ -285,12 +285,17 @@ HTML_TEMPLATE = """
                 updateStartButton();
                 input.value = '';
             };
+            reader.onerror = function(e) {
+                alert('Error reading file: ' + file.name);
+                console.error('FileReader error:', e);
+                input.value = '';
+            };
             reader.readAsText(file);
         }
 
         function updateStartButton() {
             const textarea = document.getElementById('accounts_text');
-            const lines = textarea.value.trim().split('\\n').filter(line => line.trim().length > 0);
+            const lines = textarea.value.trim().split('\n').filter(line => line.trim().length > 0);
             const validLines = lines.filter(line => line.includes(':') && line.split(':').length >= 2);
             hasContent = validLines.length > 0;
             document.getElementById('startBtn').disabled = !hasContent;
@@ -320,7 +325,7 @@ HTML_TEMPLATE = """
                 const {done, value} = await reader.read();
                 if(done) break;
                 buffer += decoder.decode(value, {stream: true});
-                const lines = buffer.split('\\n');
+                const lines = buffer.split('\n');
                 buffer = lines.pop();
                 for(const line of lines) {
                     if(line.startsWith('data: ')) {
@@ -343,7 +348,7 @@ HTML_TEMPLATE = """
             await processStream('/check', {service: service, accounts: fullAccounts}, (data) => {
                 if (data.log) {
                     const logArea = document.getElementById('logArea');
-                    logArea.innerHTML += data.log + '\\n';
+                    logArea.innerHTML += data.log + '\n';
                     logArea.scrollTop = logArea.scrollHeight;
                 } else if (data.event === 'done') {
                     document.getElementById('downloadBtn').style.display = 'block';
